@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import authRoutes from './routes/auth.routes';
 import listingRoutes from './routes/listing.routes';
+import adminRoutes from './routes/admin.routes';
 import { databaseMiddleware } from './middleware/database';
 
 dotenv.config();
@@ -20,6 +21,7 @@ app.use(databaseMiddleware);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.get('/api/health', (req: Request, res: Response) => {
   res.json({ status: 'ok' });
