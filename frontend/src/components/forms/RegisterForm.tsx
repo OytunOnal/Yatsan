@@ -10,7 +10,9 @@ import SMSVerification from './SMSVerification';
 
 const step1Schema = z.object({
   email: z.string().email('Geçerli bir email adresi girin'),
-  password: z.string().min(6, 'Şifre en az 6 karakter olmalı'),
+  password: z.string()
+    .min(8, 'Şifre en az 8 karakter olmalı')
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Şifre en az bir küçük harf, bir büyük harf ve bir rakam içermelidir'),
 });
 
 const step2Schema = z.object({
@@ -23,6 +25,7 @@ const step2Schema = z.object({
       return { message: ctx.defaultError };
     },
   }),
+  kvkkApproved: z.boolean().refine(val => val === true, 'KVKK onayı gereklidir'),
 });
 
 const formatPhoneNumber = (value: string) => {
@@ -73,18 +76,26 @@ export default function RegisterForm() {
   const phoneValue = step2Form.watch('phone');
 
   const handleStep1Next = async (data: Step1Data) => {
-    setFormData({ ...formData, ...data });
-    setCurrentStep(2);
-    router.push('/register?step=2');
+    try {
+      // Email kontrolü
+      await api.post('/auth/check-email', { email: data.email });
+      setFormData({ ...formData, ...data });
+      setCurrentStep(2);
+      router.push('/register?step=2');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Email kontrol edilemedi');
+    }
   };
 
   const handleStep2Next = async (data: Step2Data) => {
-    const completeData = { ...formData, ...data };
-    setFormData(completeData);
-    setLoading(true);
-    setError('');
-
     try {
+      // Telefon kontrolü
+      await api.post('/auth/check-phone', { phone: data.phone });
+      const completeData = { ...formData, ...data };
+      setFormData(completeData);
+      setLoading(true);
+      setError('');
+
       await api.post('/auth/register', completeData);
       setCurrentStep(3);
     } catch (err: any) {
@@ -250,6 +261,24 @@ export default function RegisterForm() {
               <p className="mt-1 text-sm text-red-600">{step2Form.formState.errors.userType.message}</p>
             )}
           </div>
+
+          <div className="flex items-start">
+            <input
+              id="kvkkApproved"
+              type="checkbox"
+              {...step2Form.register('kvkkApproved')}
+              className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded mt-1"
+            />
+            <label htmlFor="kvkkApproved" className="ml-2 block text-sm text-gray-700">
+              <a href="/kvkk" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                Kişisel Verilerin Korunması Kanunu
+              </a>
+              {' '}aydınlatma metnini okudum ve kabul ediyorum.
+            </label>
+          </div>
+          {step2Form.formState.errors.kvkkApproved && (
+            <p className="mt-1 text-sm text-red-600">{step2Form.formState.errors.kvkkApproved.message}</p>
+          )}
 
           <button
             type="submit"

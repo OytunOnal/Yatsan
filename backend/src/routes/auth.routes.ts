@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { register, login, verifySMS } from '../controllers/auth.controller';
+import { register, login, verifySMS, checkEmail, checkPhone, forgotPassword, validateResetToken, resetPassword } from '../controllers/auth.controller';
+import { passwordResetRateLimit } from '../middleware/rateLimit';
 
 const JWT_SECRET = 'your-secret-key';
 
@@ -32,6 +33,11 @@ const router = Router();
 router.post('/register', register);
 router.post('/login', login);
 router.post('/verify-sms', verifySMS);
+router.post('/check-email', checkEmail);
+router.post('/check-phone', checkPhone);
+router.post('/forgot-password', passwordResetRateLimit, forgotPassword);
+router.get('/reset-password/validate/:token', validateResetToken);
+router.post('/reset-password', resetPassword);
 router.get('/me', authMiddleware, (req, res) => {
   res.json({ user: req.user });
 });

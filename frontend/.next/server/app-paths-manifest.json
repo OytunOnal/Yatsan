@@ -1,4 +1,4 @@
 {
-  "/register/page": "app/register/page.js",
+  "/forgot-password/page": "app/forgot-password/page.js",
   "/login/page": "app/login/page.js"
 }

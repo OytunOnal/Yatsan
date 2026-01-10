@@ -12,6 +12,14 @@ export default function RegisterPage() {
         </div>
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
           <RegisterForm />
+          <div className="mt-4 text-center">
+            <Link
+              href="/forgot-password"
+              className="text-sm text-primary hover:text-primary-dark"
+            >
+              Şifremi unuttum?
+            </Link>
+          </div>
           <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
