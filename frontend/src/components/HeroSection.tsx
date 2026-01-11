@@ -1,6 +1,19 @@
-import Link from 'next/link';
+'use client';
+
+import { useRouter } from 'next/navigation';
 
 export default function HeroSection() {
+  const router = useRouter();
+
+  const handleIlanVer = () => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      router.push('/dashboard/listings/new');
+    } else {
+      router.push('/login?redirect=/dashboard/listings/new');
+    }
+  };
+
   return (
     <section className="bg-gradient-to-r from-blue-500 to-primary text-white py-20">
       <div className="max-w-4xl mx-auto px-4 text-center">
@@ -11,18 +24,18 @@ export default function HeroSection() {
           Yat, parça ve marina ilanlarınızı keşfedin. Güvenli ve kolay ticaret deneyimi yaşayın.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link
-            href="/ilan-ver"
+          <button
+            onClick={handleIlanVer}
             className="bg-white text-primary px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
           >
             İlan Ver
-          </Link>
-          <Link
-            href="/ilan-ara"
+          </button>
+          <a
+            href="/listings"
             className="bg-transparent border-2 border-white text-white px-6 py-3 rounded-lg font-semibold hover:bg-white hover:text-primary transition-colors"
           >
             İlan Ara
-          </Link>
+          </a>
         </div>
       </div>
     </section>

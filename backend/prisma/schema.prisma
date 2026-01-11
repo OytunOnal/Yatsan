@@ -11,6 +11,8 @@ model User {
   id             String    @id @default(cuid())
   email          String    @unique
   phone          String    @unique
+  firstName      String
+  lastName       String
   phoneVerified  Boolean   @default(false)
   password       String
   userType       String
@@ -21,6 +23,7 @@ model User {
   resetPasswordToken   String?   @unique
   resetPasswordExpires DateTime?
   lastPasswordReset    DateTime?
+  emailVerificationExpires DateTime?
 
   listings         Listing[]
   sentMessages     Message[] @relation("SentMessages")

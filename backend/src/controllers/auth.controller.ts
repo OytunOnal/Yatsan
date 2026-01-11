@@ -19,7 +19,7 @@ const JWT_SECRET = 'your-secret-key'; // In production, use env
 
 export const register = async (req: Request, res: Response) => {
   try {
-    const { email, password, phone, userType, kvkkApproved } = registerSchema.parse(req.body);
+    const { firstName, lastName, email, password, phone, userType, kvkkApproved } = registerSchema.parse(req.body);
 
     // Email kontrolü
     const existingUser = await req.prisma.user.findUnique({ where: { email } });
@@ -30,24 +30,31 @@ export const register = async (req: Request, res: Response) => {
     // Password hash
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Email doğrulama token'ı oluştur
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
     // User oluştur
     const user = await req.prisma.user.create({
       data: {
+        firstName,
+        lastName,
         email,
         password: hashedPassword,
         phone,
         userType,
-        kvkkApproved
+        kvkkApproved,
+        phoneVerified: false, // Will be verified via email
+        resetPasswordToken: verificationToken, // Reuse the field for email verification
+        emailVerificationExpires: verificationExpires
       }
     });
 
-    // SMS doğrulama kodu
-    const smsCode = Math.floor(100000 + Math.random() * 900000).toString();
+    // Email gönder
+    const verificationLink = `http://localhost:3001/api/auth/confirm-email/${verificationToken}`;
+    await EmailService.sendEmailConfirmationEmail(email, verificationLink);
 
-    // Mock SMS gönder
-    console.log(`SMS sent to ${phone}: Your verification code is ${smsCode}`);
-
-    res.json({ success: true, userId: user.id, message: 'SMS gönderildi' });
+    res.json({ success: true, message: 'Kayıt başarılı. Lütfen emailinizi doğrulayın.' });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ success: false, message: 'Validation error', errors: error.errors });
@@ -64,13 +71,18 @@ export const login = async (req: Request, res: Response) => {
     // User bul
     const user = await req.prisma.user.findUnique({ where: { email } });
     if (!user) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+      return res.status(401).json({ success: false, message: 'Geçersiz kullanıcı bilgileri' });
     }
 
     // Password kontrol et
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+      return res.status(401).json({ success: false, message: 'Geçersiz kullanıcı bilgileri' });
+    }
+
+    // Email doğrulanmış mı kontrol et
+    if (!user.phoneVerified) {
+      return res.status(401).json({ success: false, message: 'Lütfen emailinizi doğrulayın' });
     }
 
     // JWT token oluştur
@@ -271,5 +283,69 @@ export const resetPassword = async (req: Request, res: Response) => {
     }
     console.error(error);
     res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+export const confirmEmail = async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+
+    const user = await req.prisma.user.findFirst({
+      where: {
+        resetPasswordToken: token
+      }
+    });
+
+    if (!user) {
+      return res.status(400).send(`
+        <div style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+          <h2>Geçersiz Token</h2>
+          <p>Bu doğrulama linki geçersiz.</p>
+          <a href="http://localhost:3000/">Ana Sayfaya Dön</a>
+        </div>
+      `);
+    }
+
+    // Check if verification has expired
+    if (!user.emailVerificationExpires || user.emailVerificationExpires < new Date()) {
+      // Delete the user if verification expired
+      await req.prisma.user.delete({
+        where: { id: user.id }
+      });
+      return res.status(400).send(`
+        <div style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+          <h2>Doğrulama Süresi Doldu</h2>
+          <p>Bu doğrulama linkinin süresi dolmuş. Lütfen tekrar kayıt olun.</p>
+          <a href="http://localhost:3000/register" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">Tekrar Kayıt Ol</a>
+        </div>
+      `);
+    }
+
+    // Hesabı doğrula
+    await req.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        phoneVerified: true,
+        resetPasswordToken: null,
+        emailVerificationExpires: null
+      }
+    });
+
+    res.send(`
+      <div style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+        <h2>Email Doğrulandı!</h2>
+        <p>Hesabınız başarıyla doğrulandı. Şimdi giriş yapabilirsiniz.</p>
+        <a href="http://localhost:3000/login" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">Giriş Yap</a>
+      </div>
+    `);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send(`
+      <div style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+        <h2>Hata</h2>
+        <p>Bir hata oluştu. Lütfen tekrar deneyin.</p>
+        <a href="http://localhost:3000/">Ana Sayfaya Dön</a>
+      </div>
+    `);
   }
 };

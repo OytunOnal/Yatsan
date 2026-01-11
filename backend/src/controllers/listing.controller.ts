@@ -68,7 +68,7 @@ export const createListing = async (req: Request, res: Response) => {
 
 export const getListings = async (req: Request, res: Response) => {
   try {
-    const { category, minPrice, maxPrice, location, status, page = 1, limit = 20 } = req.query;
+    const { category, minPrice, maxPrice, location, status, search, page = 1, limit = 20 } = req.query;
 
     const where: any = {};
 
@@ -76,6 +76,12 @@ export const getListings = async (req: Request, res: Response) => {
     if (minPrice) where.price = { ...where.price, gte: parseFloat(minPrice as string) };
     if (maxPrice) where.price = { ...where.price, lte: parseFloat(maxPrice as string) };
     if (location) where.location = { contains: location as string };
+    if (search) {
+      where.OR = [
+        { title: { contains: search as string, mode: 'insensitive' } },
+        { description: { contains: search as string, mode: 'insensitive' } }
+      ];
+    }
     if (status) where.status = status;
     else {
       // Sadece APPROVED, admin hariç

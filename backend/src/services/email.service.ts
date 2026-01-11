@@ -15,6 +15,45 @@ export class EmailService {
   }
 
   /**
+   * Sends an email confirmation email with the verification link
+   * @param email - Recipient email address
+   * @param verificationLink - Email verification link containing the token
+   */
+  static async sendEmailConfirmationEmail(email: string, verificationLink: string): Promise<void> {
+    const resend = this.getResendInstance();
+
+    if (resend) {
+      try {
+        await resend.emails.send({
+          from: 'Yatsan <onboarding@resend.dev>',
+          to: email,
+          subject: 'Email Doğrulama',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #333;">Email Doğrulama</h2>
+              <p>Merhaba,</p>
+              <p>Hesabınızı doğrulamak için aşağıdaki linke tıklayın:</p>
+              <a href="${verificationLink}" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">Emaili Doğrula</a>
+              <p>Bu link 24 saat içinde geçerliliğini yitirecektir.</p>
+              <p>Eğer bu talebi siz yapmadıysanız, bu emaili görmezden gelebilirsiniz.</p>
+              <br>
+              <p>Saygılarımla,<br>Yatsan Ekibi</p>
+            </div>
+          `,
+        });
+        console.log(`Email confirmation sent to ${email}`);
+      } catch (error) {
+        console.error('Failed to send email:', error);
+        throw new Error('Email gönderilemedi');
+      }
+    } else {
+      // Fallback to console log for development
+      console.log(`Email confirmation sent to ${email}`);
+      console.log(`Verification link: ${verificationLink}`);
+    }
+  }
+
+  /**
    * Sends a password reset email with the reset link
    * @param email - Recipient email address
    * @param resetLink - Password reset link containing the token

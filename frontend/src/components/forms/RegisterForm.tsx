@@ -6,9 +6,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useRouter, useSearchParams } from 'next/navigation';
 import api from '../../lib/api';
-import SMSVerification from './SMSVerification';
 
 const step1Schema = z.object({
+  firstName: z.string().min(1, 'Ad zorunludur'),
+  lastName: z.string().min(1, 'Soyad zorunludur'),
   email: z.string().email('Geçerli bir email adresi girin'),
   password: z.string()
     .min(8, 'Şifre en az 8 karakter olmalı')
@@ -41,7 +42,11 @@ const formatPhoneNumber = (value: string) => {
 type Step1Data = z.infer<typeof step1Schema>;
 type Step2Data = z.infer<typeof step2Schema>;
 
-export default function RegisterForm() {
+interface RegisterFormProps {
+  onStepChange?: (step: number) => void;
+}
+
+export default function RegisterForm({ onStepChange }: RegisterFormProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<Partial<Step1Data & Step2Data>>({});
   const [loading, setLoading] = useState(false);
@@ -63,14 +68,16 @@ export default function RegisterForm() {
     const step = searchParams.get('step');
     if (step === '2') {
       setCurrentStep(2);
+      onStepChange?.(2);
       // Step 2'ye geri döndüğümüzde, eğer telefon '90' ise placeholder'ı göster
       if (step2Form.getValues('phone') === '90') {
         step2Form.setValue('phone', '', { shouldValidate: false });
       }
     } else {
       setCurrentStep(1);
+      onStepChange?.(1);
     }
-  }, [searchParams, step2Form]);
+  }, [searchParams, step2Form, onStepChange]);
 
   // Telefon input değerini izlemek için watch kullanıyoruz
   const phoneValue = step2Form.watch('phone');
@@ -81,6 +88,7 @@ export default function RegisterForm() {
       await api.post('/auth/check-email', { email: data.email });
       setFormData({ ...formData, ...data });
       setCurrentStep(2);
+      onStepChange?.(2);
       router.push('/register?step=2');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Email kontrol edilemedi');
@@ -98,6 +106,7 @@ export default function RegisterForm() {
 
       await api.post('/auth/register', completeData);
       setCurrentStep(3);
+      onStepChange?.(3);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Kayıt başarısız');
     } finally {
@@ -105,32 +114,21 @@ export default function RegisterForm() {
     }
   };
 
-  const handleVerificationComplete = async (code: string) => {
-    // For testing, accept fixed code "123456" without API call
-    if (code === '123456') {
-      router.push('/login');
-    } else {
-      setError('Geçersiz kod');
-    }
-  };
-
-  const handleResendCode = async () => {
-    try {
-      await api.post('/auth/resend', { email: formData.email });
-    } catch (err: any) {
-      setError('Kod gönderilemedi');
-    }
-  };
-
   if (currentStep === 3) {
     return (
-      <div className="space-y-4">
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-            {error}
-          </div>
-        )}
-        <SMSVerification onComplete={handleVerificationComplete} onResend={handleResendCode} />
+      <div className="space-y-4 text-center">
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+          Kayıt başarılı! Lütfen emailinizi kontrol edin ve doğrulama linkine tıklayın.
+        </div>
+        <p className="text-gray-600">
+          Emailinizi doğruladıktan sonra giriş yapabilirsiniz.
+        </p>
+        <button
+          onClick={() => router.push('/login')}
+          className="bg-primary text-white py-2 px-4 rounded-md hover:bg-blue-700"
+        >
+          Giriş Sayfasına Git
+        </button>
       </div>
     );
   }
@@ -145,6 +143,34 @@ export default function RegisterForm() {
 
       {currentStep === 1 && (
         <form onSubmit={step1Form.handleSubmit(handleStep1Next)} noValidate className="space-y-4">
+          <div>
+            <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
+              Ad
+            </label>
+            <input
+              id="firstName"
+              type="text"
+              {...step1Form.register('firstName')}
+              className={`mt-1 block w-full px-3 py-2 border ${step1Form.formState.errors.firstName ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary`}
+            />
+            {step1Form.formState.errors.firstName && (
+              <p className="mt-1 text-sm text-red-600">{step1Form.formState.errors.firstName.message}</p>
+            )}
+          </div>
+          <div>
+            <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">
+              Soyad
+            </label>
+            <input
+              id="lastName"
+              type="text"
+              {...step1Form.register('lastName')}
+              className={`mt-1 block w-full px-3 py-2 border ${step1Form.formState.errors.lastName ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary`}
+            />
+            {step1Form.formState.errors.lastName && (
+              <p className="mt-1 text-sm text-red-600">{step1Form.formState.errors.lastName.message}</p>
+            )}
+          </div>
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700">
               Email

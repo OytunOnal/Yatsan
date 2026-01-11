@@ -16,6 +16,7 @@ async function getListings(searchParams: { [key: string]: string | string[] | un
   if (searchParams.minPrice) params.append('minPrice', searchParams.minPrice as string);
   if (searchParams.maxPrice) params.append('maxPrice', searchParams.maxPrice as string);
   if (searchParams.location) params.append('location', searchParams.location as string);
+  if (searchParams.search) params.append('search', searchParams.search as string);
 
   try {
     const res = await fetch(`http://localhost:3001/api/listings?${params}`, {
@@ -41,7 +42,8 @@ export default async function ListingsPage({
   const listings = await getListings(searchParams);
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen">
+      <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Sidebar */}
         <div className="lg:w-1/4">
@@ -56,7 +58,9 @@ export default async function ListingsPage({
         {/* Main Content */}
         <div className="lg:w-3/4">
           <div className="mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">İlanlar</h1>
+            <h1 className="text-3xl font-bold text-gray-900">
+              {searchParams.search ? `"${searchParams.search}" için arama sonuçları` : 'İlanlar'}
+            </h1>
             <p className="text-gray-600 mt-2">{listings.length} ilan bulundu</p>
           </div>
 
@@ -80,6 +84,7 @@ export default async function ListingsPage({
           )}
         </div>
       </div>
+    </div>
     </div>
   );
 }

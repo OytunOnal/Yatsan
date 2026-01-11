@@ -41,7 +41,7 @@ export default function DashboardPage() {
       {/* Welcome Message */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Hoş Geldiniz!</h1>
-        <p className="text-gray-600 mt-2">Dashboard'ınızda güncel bilgilerinizi görebilirsiniz.</p>
+        <p className="text-gray-600 mt-2">Kontrol Paneli'nde güncel bilgilerinizi görebilirsiniz.</p>
       </div>
 
       {/* Stats Cards */}

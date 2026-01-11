@@ -18,7 +18,8 @@ export default function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
 
   const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: '📊' },
+    { name: 'Kontrol Paneli', href: '/dashboard', icon: '📊' },
+    { name: 'Profilim', href: '/dashboard/profile', icon: '👤' },
     { name: 'İlanlarım', href: '/dashboard/listings', icon: '📋' },
     { name: 'Mesajlar', href: '/dashboard/messages', icon: '💬' },
     { name: 'Ayarlar', href: '/dashboard/settings', icon: '⚙️' },

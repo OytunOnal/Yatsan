@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 export const registerSchema = z.object({
+  firstName: z.string().min(1, 'Ad zorunludur'),
+  lastName: z.string().min(1, 'Soyad zorunludur'),
   email: z.string().email(),
   password: z.string()
     .min(8, 'Şifre en az 8 karakter olmalı')

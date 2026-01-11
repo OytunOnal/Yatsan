@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import api from '../../lib/api';
 
 const loginSchema = z.object({
@@ -33,6 +33,8 @@ export default function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get('redirect');
 
   const {
     register,
@@ -51,7 +53,8 @@ export default function LoginForm() {
       const response = await api.post('/auth/login', data);
       const { token } = response.data;
       localStorage.setItem('token', token);
-      router.push('/');
+      window.dispatchEvent(new Event('authChange'));
+      router.push(redirect || '/');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Giriş başarısız');
     } finally {

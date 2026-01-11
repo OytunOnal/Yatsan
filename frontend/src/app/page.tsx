@@ -1,28 +1,32 @@
 import HeroSection from '../components/HeroSection';
 import CategoryCard from '../components/CategoryCard';
 
-export default function HomePage() {
+async function getCategoryCounts() {
+  try {
+    const res = await fetch('http://localhost:3001/api/listings?status=APPROVED', {
+      cache: 'no-store',
+    });
+    const data = await res.json();
+    const listings = data.listings || [];
+
+    const counts = {
+      YACHT: listings.filter((l: any) => l.category === 'YACHT').length,
+      PART: listings.filter((l: any) => l.category === 'PART').length,
+      MARINA: listings.filter((l: any) => l.category === 'MARINA').length,
+    };
+
+    return counts;
+  } catch (error) {
+    console.error('Failed to fetch category counts:', error);
+    return { YACHT: 0, PART: 0, MARINA: 0 };
+  }
+}
+
+export default async function HomePage() {
+  const counts = await getCategoryCounts();
   return (
     <div className="min-h-screen">
       <HeroSection />
-
-      {/* Search Bar */}
-      <section className="py-8 bg-gray-50">
-        <div className="container mx-auto px-4">
-          <div className="max-w-md mx-auto">
-            <div className="flex">
-              <input
-                type="text"
-                placeholder="İlan ara..."
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-              <button className="bg-primary text-white px-6 py-2 rounded-r-lg hover:bg-blue-700 transition-colors">
-                Ara
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* Categories */}
       <section className="py-12">
@@ -35,16 +39,22 @@ export default function HomePage() {
               icon={<span className="text-4xl">⛵</span>}
               title="Yat"
               description="Yat ilanlarını keşfedin ve hayalinizdeki tekneyi bulun."
+              category="YACHT"
+              count={counts.YACHT}
             />
             <CategoryCard
               icon={<span className="text-4xl">🔧</span>}
               title="Parça"
               description="Yat parçaları ve aksesuarları için en iyi teklifler."
+              category="PART"
+              count={counts.PART}
             />
             <CategoryCard
               icon={<span className="text-4xl">⚓</span>}
               title="Marina"
               description="Marina hizmetleri ve yer rezervasyonları."
+              category="MARINA"
+              count={counts.MARINA}
             />
           </div>
         </div>

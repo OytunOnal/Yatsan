@@ -20,13 +20,38 @@ export default function DashboardLayout({
       return;
     }
 
-    // TODO: Fetch user data from API
-    // For now, mock user data
-    setUser({
-      name: 'John Doe',
-      email: 'john@example.com',
-    });
-    setLoading(false);
+    // Fetch user data from API
+    const fetchUser = async () => {
+      try {
+        const response = await fetch('http://localhost:3001/api/auth/me', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setUser({
+            name: `${data.user.firstName} ${data.user.lastName}`,
+            email: data.user.email,
+          });
+        } else {
+          // Fallback to mock data
+          setUser({
+            name: 'John Doe',
+            email: 'john@example.com',
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch user data:', error);
+        setUser({
+          name: 'John Doe',
+          email: 'john@example.com',
+        });
+      }
+      setLoading(false);
+    };
+
+    fetchUser();
   }, [router]);
 
   if (loading) {
