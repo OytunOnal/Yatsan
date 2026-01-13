@@ -8,8 +8,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import api from '../../lib/api';
 
 const step1Schema = z.object({
-  firstName: z.string().min(1, 'Ad zorunludur'),
-  lastName: z.string().min(1, 'Soyad zorunludur'),
+  firstName: z.string()
+    .min(1, 'Ad zorunludur')
+    .regex(/^[a-zA-ZğüşıöçĞÜŞİÖÇ\s]+$/, 'Ad sadece harf içerebilir'),
+  lastName: z.string()
+    .min(1, 'Soyad zorunludur')
+    .regex(/^[a-zA-ZğüşıöçĞÜŞİÖÇ\s]+$/, 'Soyad sadece harf içerebilir'),
   email: z.string().email('Geçerli bir email adresi girin'),
   password: z.string()
     .min(8, 'Şifre en az 8 karakter olmalı')
@@ -17,7 +21,10 @@ const step1Schema = z.object({
 });
 
 const step2Schema = z.object({
-  phone: z.string().min(12, 'Geçerli bir telefon numarası girin').regex(/^\d+$/, 'Telefon numarası sadece rakam içermelidir'),
+  phone: z.string()
+    .min(12, 'Telefon numarası 12 haneli olmalıdır')
+    .max(12, 'Telefon numarası 12 haneli olmalıdır')
+    .regex(/^\d+$/, 'Telefon numarası sadece rakam içermelidir'),
   userType: z.enum(['INDIVIDUAL', 'BROKER'], {
     errorMap: (issue, ctx) => {
       if (issue.code === 'invalid_enum_value') {
@@ -125,7 +132,7 @@ export default function RegisterForm({ onStepChange }: RegisterFormProps) {
         </p>
         <button
           onClick={() => router.push('/login')}
-          className="bg-primary text-white py-2 px-4 rounded-md hover:bg-blue-700"
+          className="bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700"
         >
           Giriş Sayfasına Git
         </button>
@@ -151,6 +158,10 @@ export default function RegisterForm({ onStepChange }: RegisterFormProps) {
               id="firstName"
               type="text"
               {...step1Form.register('firstName')}
+              onInput={(e) => {
+                const target = e.target as HTMLInputElement;
+                target.value = target.value.replace(/[^a-zA-ZğüşıöçĞÜŞİÖÇ\s]/g, '');
+              }}
               className={`mt-1 block w-full px-3 py-2 border ${step1Form.formState.errors.firstName ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary`}
             />
             {step1Form.formState.errors.firstName && (
@@ -165,6 +176,10 @@ export default function RegisterForm({ onStepChange }: RegisterFormProps) {
               id="lastName"
               type="text"
               {...step1Form.register('lastName')}
+              onInput={(e) => {
+                const target = e.target as HTMLInputElement;
+                target.value = target.value.replace(/[^a-zA-ZğüşıöçĞÜŞİÖÇ\s]/g, '');
+              }}
               className={`mt-1 block w-full px-3 py-2 border ${step1Form.formState.errors.lastName ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary`}
             />
             {step1Form.formState.errors.lastName && (
@@ -204,7 +219,7 @@ export default function RegisterForm({ onStepChange }: RegisterFormProps) {
           <button
             type="submit"
             disabled={step1Form.formState.isSubmitting}
-            className="w-full bg-primary text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 flex items-center justify-center"
+            className="w-full bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 flex items-center justify-center"
           >
             {step1Form.formState.isSubmitting && (
               <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -293,10 +308,10 @@ export default function RegisterForm({ onStepChange }: RegisterFormProps) {
               id="kvkkApproved"
               type="checkbox"
               {...step2Form.register('kvkkApproved')}
-              className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded mt-1"
+              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded mt-1"
             />
             <label htmlFor="kvkkApproved" className="ml-2 block text-sm text-gray-700">
-              <a href="/kvkk" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+              <a href="/kvkk" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline">
                 Kişisel Verilerin Korunması Kanunu
               </a>
               {' '}aydınlatma metnini okudum ve kabul ediyorum.
@@ -309,7 +324,7 @@ export default function RegisterForm({ onStepChange }: RegisterFormProps) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-primary text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 flex items-center justify-center"
+            className="w-full bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 flex items-center justify-center"
           >
             {loading && (
               <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

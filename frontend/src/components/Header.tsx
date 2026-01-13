@@ -3,79 +3,195 @@
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import ProfileDropdown from './ProfileDropdown';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function Header() {
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    // Initialize synchronously by checking localStorage immediately
-    return !!localStorage.getItem('token');
-  });
+  const { isAuthenticated } = useAuth();
+  const [mounted, setMounted] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const checkAuth = () => {
-      const token = localStorage.getItem('token');
-      setIsLoggedIn(!!token);
+    setMounted(true);
+
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 10);
     };
 
-    window.addEventListener('authChange', checkAuth);
-
-    return () => {
-      window.removeEventListener('authChange', checkAuth);
-    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Don't render until mounted on client
+  if (!mounted) {
+    return (
+      <header className="h-16 bg-white border-b border-gray-200" />
+    );
+  }
+
   return (
-    <header className="bg-white shadow-md border-b border-gray-200">
-      <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-        {/* Left: Logo */}
-        <div className="flex-shrink-0">
-          <Link href="/" className="text-2xl font-bold text-primary hover:text-blue-700">
-            Yatsan
-          </Link>
-        </div>
+    <header
+      className={`sticky top-0 z-50 transition-all duration-200 ${
+        scrolled ? 'bg-white/95 backdrop-blur-sm shadow-sm border-b border-gray-200' : 'bg-white border-b border-gray-200'
+      }`}
+    >
+      <div className="container">
+        <div className="flex items-center justify-between h-16">
+          {/* Logo */}
+          <div className="flex-shrink-0">
+            <Link href="/" className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-lg bg-gradient-primary flex items-center justify-center">
+                <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                </svg>
+              </div>
+              <span className="text-xl font-bold text-gray-900">Yatsan</span>
+            </Link>
+          </div>
 
-        {/* Center: Search Bar */}
-        <div className="flex-1 flex justify-center">
-          <form action="/listings" method="GET" className="max-w-md w-full">
-            <div className="flex">
-              <input
-                type="text"
-                name="search"
-                placeholder="İlan ara..."
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-              <button className="bg-primary text-white px-6 py-2 rounded-r-lg hover:bg-blue-700 transition-colors">
-                Ara
-              </button>
-            </div>
-          </form>
-        </div>
-
-        {/* Right: Nav and Hamburger */}
-        <div className="flex items-center space-x-4 flex-shrink-0">
-          <nav className="hidden md:flex space-x-6 items-center">
-            <Link href="/listings" className="text-gray-700 hover:text-primary">
+          {/* Desktop Navigation */}
+          <nav className="hidden lg:flex items-center space-x-1">
+            <Link
+              href="/listings"
+              className="px-4 py-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg font-medium transition-colors"
+            >
               İlanlar
             </Link>
-            {isLoggedIn ? (
+            <Link
+              href="/listings?category=YACHT"
+              className="px-4 py-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg font-medium transition-colors"
+            >
+              Yatlar
+            </Link>
+            <Link
+              href="/listings?category=PART"
+              className="px-4 py-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg font-medium transition-colors"
+            >
+              Yedek Parça
+            </Link>
+            <Link
+              href="/listings?category=MARINA"
+              className="px-4 py-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg font-medium transition-colors"
+            >
+              Marina
+            </Link>
+          </nav>
+
+          {/* Right Section */}
+          <div className="flex items-center space-x-3">
+            {/* Post Ad Button - Desktop */}
+            <Link
+              href="/dashboard/listings/new"
+              className="hidden md:inline-flex items-center gap-2 px-4 py-2 bg-accent-600 text-white rounded-lg font-medium hover:bg-accent-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-500 shadow-sm"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span>İlan Ver</span>
+            </Link>
+
+            {/* Auth Section */}
+            {isAuthenticated ? (
               <ProfileDropdown />
             ) : (
-              <>
-                <Link href="/login" className="text-gray-700 hover:text-primary">
+              <div className="hidden md:flex items-center space-x-2">
+                <Link
+                  href="/login"
+                  className="px-4 py-2 text-primary-600 border border-primary-600 hover:text-primary-700 hover:border-primary-700 hover:bg-gray-50 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                >
                   Giriş
                 </Link>
-                <Link href="/register" className="text-gray-700 hover:text-primary">
-                  Hesap Aç
+                <Link
+                  href="/register"
+                  className="btn-primary"
+                >
+                  Kayıt Ol
+                </Link>
+              </div>
+            )}
+
+            {/* Mobile Menu Button */}
+            <button
+              className="lg:hidden p-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Menüyü aç"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {mobileMenuOpen ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                )}
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Menu */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden border-t border-gray-200 bg-white">
+          <div className="container py-4 space-y-2">
+            <Link
+              href="/listings"
+              className="block px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg font-medium"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Tüm İlanlar
+            </Link>
+            <Link
+              href="/listings?category=YACHT"
+              className="block px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg font-medium"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Yatlar
+            </Link>
+            <Link
+              href="/listings?category=PART"
+              className="block px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg font-medium"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Yedek Parça
+            </Link>
+            <Link
+              href="/listings?category=MARINA"
+              className="block px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg font-medium"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Marina
+            </Link>
+            <div className="divider my-3" />
+            <Link
+              href="/dashboard/listings/new"
+              className="flex items-center gap-2 px-4 py-3 bg-accent-600 text-white rounded-lg font-medium"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              İlan Ver
+            </Link>
+            {!isAuthenticated && (
+              <>
+                <Link
+                  href="/login"
+                  className="block px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg font-medium"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Giriş Yap
+                </Link>
+                <Link
+                  href="/register"
+                  className="block px-4 py-3 bg-primary-600 text-white rounded-lg font-medium text-center"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Kayıt Ol
                 </Link>
               </>
             )}
-          </nav>
-          <button className="md:hidden text-gray-700">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
+          </div>
         </div>
-      </div>
+      )}
     </header>
   );
 }

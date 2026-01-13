@@ -2,63 +2,102 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import Filters from '../../components/listings/Filters';
+import Filters, { FiltersProps } from '../../components/listings/Filters';
+import { ListingType } from '../../lib/api';
+import { DynamicFilters, DynamicFilterValue } from '../../types';
 
 export default function FiltersClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [categories, setCategories] = useState<string[]>([]);
-  const [minPrice, setMinPrice] = useState(0);
-  const [maxPrice, setMaxPrice] = useState(1000000);
-  const [location, setLocation] = useState('');
+  const [filters, setFilters] = useState<FiltersProps>({
+    listingType: 'all',
+    minPrice: '',
+    maxPrice: '',
+    location: '',
+    search: '',
+  });
+  const [dynamicFilters, setDynamicFilters] = useState<DynamicFilters>({});
 
   useEffect(() => {
     // Initialize from URL params
-    const categoryParam = searchParams.get('category');
-    if (categoryParam) {
-      setCategories(categoryParam.split(','));
-    }
+    const listingTypeParam = searchParams.get('listingType') as ListingType | 'all' | null;
     const minPriceParam = searchParams.get('minPrice');
-    if (minPriceParam) {
-      setMinPrice(Number(minPriceParam));
-    }
     const maxPriceParam = searchParams.get('maxPrice');
-    if (maxPriceParam) {
-      setMaxPrice(Number(maxPriceParam));
-    }
     const locationParam = searchParams.get('location');
-    if (locationParam) {
-      setLocation(locationParam);
-    }
+    const searchParam = searchParams.get('search');
+
+    setFilters({
+      listingType: listingTypeParam || 'all',
+      minPrice: minPriceParam || '',
+      maxPrice: maxPriceParam || '',
+      location: locationParam || '',
+      search: searchParam || '',
+    });
   }, [searchParams]);
 
-  const handleApplyFilters = (filters: {
-    categories: string[];
-    minPrice: number;
-    maxPrice: number;
-    location: string;
-  }) => {
+  const handleFilterChange = (newFilters: FiltersProps) => {
+    // listingType değiştiğinde dinamik filtreleri sıfırla
+    if (newFilters.listingType !== filters.listingType) {
+      setDynamicFilters({});
+    }
+    setFilters(newFilters);
+  };
+
+  const handleDynamicFilterChange = (name: string, value: DynamicFilterValue) => {
+    setDynamicFilters(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSearch = () => {
     const params = new URLSearchParams();
-    if (filters.categories.length > 0) {
-      params.set('category', filters.categories.join(','));
+    
+    if (filters.listingType !== 'all') {
+      params.set('listingType', filters.listingType);
     }
-    if (filters.minPrice > 0) {
-      params.set('minPrice', filters.minPrice.toString());
+    if (filters.minPrice) {
+      params.set('minPrice', filters.minPrice);
     }
-    if (filters.maxPrice < 1000000) {
-      params.set('maxPrice', filters.maxPrice.toString());
+    if (filters.maxPrice) {
+      params.set('maxPrice', filters.maxPrice);
     }
     if (filters.location) {
       params.set('location', filters.location);
     }
+    if (filters.search) {
+      params.set('search', filters.search);
+    }
+
+    // Dinamik filtreleri URL'e ekle
+    Object.entries(dynamicFilters).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        if (value.length > 0) {
+          params.set(key, value.join(','));
+        }
+      } else if (typeof value === 'object' && value !== null) {
+        // Range value
+        const rangeValue = value as { min?: number; max?: number };
+        if (rangeValue.min !== undefined) {
+          params.set(`${key}_min`, rangeValue.min.toString());
+        }
+        if (rangeValue.max !== undefined) {
+          params.set(`${key}_max`, rangeValue.max.toString());
+        }
+      } else if (value !== '' && value !== null && value !== undefined) {
+        params.set(key, value.toString());
+      }
+    });
 
     router.push(`/listings?${params.toString()}`);
   };
 
   return (
     <Filters
-      onApplyFilters={handleApplyFilters}
+      filters={filters}
+      onFilterChange={handleFilterChange}
+      onSearch={handleSearch}
+      listingType={filters.listingType}
+      dynamicFilters={dynamicFilters}
+      onDynamicFilterChange={handleDynamicFilterChange}
     />
   );
 }

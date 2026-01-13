@@ -1,83 +1,158 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Sidebar from '../../components/dashboard/Sidebar';
+import { ReactNode, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { useAuthStore } from '@/store/authStore';
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const [user, setUser] = useState<{ name: string; email: string; avatar?: string } | null>(null);
-  const [loading, setLoading] = useState(true);
+interface DashboardLayoutProps {
+  children: ReactNode;
+}
+
+const navItems = [
+  { href: '/dashboard', label: 'Dashboard', icon: 'home' },
+  { href: '/dashboard/listings', label: 'İlanlarım', icon: 'document' },
+  { href: '/dashboard/messages', label: 'Mesajlar', icon: 'message' },
+  { href: '/dashboard/profile', label: 'Profil', icon: 'user' },
+  { href: '/dashboard/settings', label: 'Ayarlar', icon: 'settings' },
+];
+
+const icons = {
+  home: (
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+  ),
+  document: (
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+  ),
+  message: (
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+  ),
+  user: (
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+  ),
+  settings: (
+    <>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </>
+  ),
+};
+
+export default function DashboardLayout({ children }: DashboardLayoutProps) {
+  const pathname = usePathname();
   const router = useRouter();
+  const { user, token } = useAuthStore();
+  const [hasHydrated, setHasHydrated] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
+    // Zustand store hydrate olduktan sonra kontrol yap
+    setHasHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    // Kullanıcı giriş yapmamışsa ve hydrate olduysa login sayfasına yönlendir
+    if (hasHydrated && (!token || !user)) {
       router.push('/login');
-      return;
     }
+  }, [token, user, router, hasHydrated]);
 
-    // Fetch user data from API
-    const fetchUser = async () => {
-      try {
-        const response = await fetch('http://localhost:3001/api/auth/me', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setUser({
-            name: `${data.user.firstName} ${data.user.lastName}`,
-            email: data.user.email,
-          });
-        } else {
-          // Fallback to mock data
-          setUser({
-            name: 'John Doe',
-            email: 'john@example.com',
-          });
-        }
-      } catch (error) {
-        console.error('Failed to fetch user data:', error);
-        setUser({
-          name: 'John Doe',
-          email: 'john@example.com',
-        });
-      }
-      setLoading(false);
-    };
-
-    fetchUser();
-  }, [router]);
-
-  if (loading) {
+  // Hydrate olmadan veya kullanıcı giriş yapmamışsa loading göster
+  if (!hasHydrated || (!token || !user)) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-gray-600">Yükleniyor...</p>
-        </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
       </div>
     );
   }
 
-  if (!user) {
-    return null;
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="flex">
-        <Sidebar user={user} />
-        <main className="flex-1 lg:ml-0">
-          <div className="p-8">
+      <div className="container py-6">
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Sidebar */}
+          <aside className="lg:w-64 flex-shrink-0">
+            <nav className="card p-2">
+              <ul className="space-y-1">
+                {navItems.map((item) => {
+                  const isActive = pathname === item.href;
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                          isActive
+                            ? 'bg-primary-50 text-primary-700'
+                            : 'text-gray-700 hover:bg-gray-100'
+                        }`}
+                      >
+                        <svg className={`w-5 h-5 ${isActive ? 'text-primary-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          {icons[item.icon as keyof typeof icons]}
+                        </svg>
+                        {item.label}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </nav>
+
+            {/* Quick Add Card */}
+            <div className="card p-4 mt-4">
+              <h3 className="font-semibold text-gray-900 mb-3">Hızlı İlan Ekle</h3>
+              <div className="space-y-2">
+                <Link
+                  href="/dashboard/listings/new?type=yacht"
+                  className="flex items-center gap-3 p-3 rounded-lg bg-primary-50 hover:bg-primary-100 transition-colors group"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </div>
+                  <span className="text-sm font-medium text-gray-900">Yat İlanı</span>
+                </Link>
+                <Link
+                  href="/dashboard/listings/new?type=part"
+                  className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors group"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </div>
+                  <span className="text-sm font-medium text-gray-900">Yedek Parça</span>
+                </Link>
+                <Link
+                  href="/dashboard/listings/new?type=marina"
+                  className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors group"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-secondary-600 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </div>
+                  <span className="text-sm font-medium text-gray-900">Marina</span>
+                </Link>
+                <Link
+                  href="/dashboard/listings/new?type=crew"
+                  className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors group"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-warning-500 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </div>
+                  <span className="text-sm font-medium text-gray-900">Mürettebat</span>
+                </Link>
+              </div>
+            </div>
+          </aside>
+
+          {/* Main Content */}
+          <main className="flex-1 min-w-0">
             {children}
-          </div>
-        </main>
+          </main>
+        </div>
       </div>
     </div>
   );

@@ -1,183 +1,427 @@
 import { Request, Response } from 'express';
-import { z } from 'zod';
+import { eq, and, or, desc, sql, like } from 'drizzle-orm';
+import { listings, listingImages, users } from '../db/schema';
+import { ListingHandlerRegistry } from '../handlers/listing';
+import { assertAuthenticated } from '../types';
 
-const createListingSchema = z.object({
-  title: z.string(),
-  description: z.string().optional(),
-  price: z.number(),
-  category: z.enum(['YACHT', 'PART', 'MARINA']),
-  location: z.string().optional(),
-  length: z.number().optional(),
-  beam: z.number().optional(),
-  year: z.number().optional(),
-  engineHours: z.number().optional(),
-  condition: z.string().optional(),
-  brand: z.string().optional(),
-  oemCode: z.string().optional(),
-  maxLength: z.number().optional(),
-  services: z.string().optional()
-});
+// Get the singleton registry instance
+const registry = ListingHandlerRegistry.getInstance();
 
+// ============================================
+// GENEL LİSTİNG FONKSİYONLARI
+// ============================================
+
+/**
+ * İlan oluşturma (tüm türleri destekler)
+ * 
+ * Bu fonksiyon artık yeni listing type'lar eklendiğinde
+ * değiştirilmesi gerekmez. Yeni bir type eklemek için:
+ * 1. Yeni handler class'ı oluştur
+ * 2. Registry'ye kaydet
+ * 3. İşte bu kadar!
+ */
 export const createListing = async (req: Request, res: Response) => {
   try {
-    const data = createListingSchema.parse(req.body);
+    assertAuthenticated(req);
+    const { listingType, ...data } = req.body;
 
-    // Category specific validation
-    if (data.category === 'YACHT') {
-      if (!data.length || !data.beam || !data.year || !data.engineHours) {
-        return res.status(400).json({ message: 'Yacht requires length, beam, year, engineHours' });
-      }
-    } else if (data.category === 'PART') {
-      if (!data.condition || !data.brand || !data.oemCode) {
-        return res.status(400).json({ message: 'Part requires condition, brand, oemCode' });
-      }
-    } else if (data.category === 'MARINA') {
-      if (!data.maxLength || !data.services) {
-        return res.status(400).json({ message: 'Marina requires maxLength, services' });
-      }
+    // Get handler for this type
+    const handler = registry.getHandler(listingType);
+
+    // Validate using handler
+    const validation = handler.validate(data);
+    if (!validation.success) {
+      return res.status(400).json({ message: 'Validasyon hatası', errors: validation.errors });
     }
 
-    // Create listing
-    const listing = await req.prisma.listing.create({
-      data: {
-        ...data,
-        userId: req.user.id,
-        status: 'PENDING'
-      }
-    });
+    const validatedData = validation.data;
+
+    // Create base listing
+    const newListings = await req.db.insert(listings).values({
+      userId: req.user.id,
+      title: validatedData.title,
+      description: validatedData.description,
+      price: validatedData.price?.toString() || '0',
+      currency: validatedData.currency,
+      listingType,
+      status: 'PENDING',
+      location: validatedData.location,
+    }).returning();
+
+    const listing = newListings[0];
+
+    // Create type-specific data using handler
+    await handler.createTypeSpecific(req.db, listing.id, validatedData);
 
     // Handle images
     if (req.files && Array.isArray(req.files)) {
       const images = req.files.map((file: Express.Multer.File, index: number) => ({
+        listing_id: listing.id,
         url: `/uploads/${file.filename}`,
         orderIndex: index,
-        listingId: listing.id
       }));
-      await req.prisma.listingImage.createMany({ data: images });
+      await req.db.insert(listingImages).values(images);
     }
 
     res.status(201).json({ listing });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ message: 'Validation error', errors: error.errors });
-    }
-    console.error(error);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error('İlan oluşturma hatası:', error);
+    res.status(500).json({ message: 'Sunucu hatası' });
   }
 };
 
+/**
+ * İlanları listele
+ *
+ * Supports both base filters (minPrice, maxPrice, location, search)
+ * and type-specific filters (yachtType, condition, brand, etc.)
+ */
 export const getListings = async (req: Request, res: Response) => {
   try {
-    const { category, minPrice, maxPrice, location, status, search, page = 1, limit = 20 } = req.query;
+    const {
+      listingType,
+      minPrice,
+      maxPrice,
+      location,
+      status,
+      search,
+      page = 1,
+      limit = 20
+    } = req.query;
 
-    const where: any = {};
+    // WHERE koşullarını oluştur
+    const conditions: any[] = [];
 
-    if (category) where.category = category;
-    if (minPrice) where.price = { ...where.price, gte: parseFloat(minPrice as string) };
-    if (maxPrice) where.price = { ...where.price, lte: parseFloat(maxPrice as string) };
-    if (location) where.location = { contains: location as string };
-    if (search) {
-      where.OR = [
-        { title: { contains: search as string, mode: 'insensitive' } },
-        { description: { contains: search as string, mode: 'insensitive' } }
-      ];
+    if (listingType) {
+      conditions.push(eq(listings.listingType, listingType as string));
     }
-    if (status) where.status = status;
-    else {
-      // Sadece APPROVED, admin hariç
-      if (req.user?.userType !== 'ADMIN') {
-        where.status = 'APPROVED';
+
+    if (minPrice) {
+      conditions.push(sql`${listings.price} >= ${parseFloat(minPrice as string)}`);
+    }
+
+    if (maxPrice) {
+      conditions.push(sql`${listings.price} <= ${parseFloat(maxPrice as string)}`);
+    }
+
+    if (location) {
+      conditions.push(like(listings.location, `%${location}%`));
+    }
+
+    if (search) {
+      conditions.push(
+        or(
+          like(listings.title, `%${search}%`),
+          like(listings.description!, `%${search}%`)
+        )
+      );
+    }
+
+    if (status) {
+      conditions.push(eq(listings.status, status as string));
+    } else {
+      // Public endpoint: sadece APPROVED ilanları göster
+      conditions.push(eq(listings.status, 'APPROVED'));
+    }
+
+    // Type-specific filtreleri ekle
+    let typeSpecificConditions: any[] = [];
+    if (listingType) {
+      try {
+        const handler = registry.getHandler(listingType as string);
+        // Type-specific filtreleri query parametrelerinden al
+        const typeSpecificFilters = { ...req.query };
+        typeSpecificConditions = handler.getTypeSpecificFilters(typeSpecificFilters);
+      } catch (e) {
+        // Handler bulunamazsa type-specific filtreler eklenmez
       }
     }
 
-    const listings = await req.prisma.listing.findMany({
-      where,
-      include: { images: true, user: { select: { id: true, email: true, userType: true } } },
-      skip: (parseInt(page as string) - 1) * parseInt(limit as string),
-      take: parseInt(limit as string),
-      orderBy: { createdAt: 'desc' }
+    // Tüm koşulları birleştir
+    const allConditions = [...conditions, ...typeSpecificConditions];
+    const whereClause = allConditions.length > 0 ? and(...allConditions) : undefined;
+
+    // İlanları getir
+    const allListings = await req.db.select({
+      listing: listings,
+      user: {
+        id: users.id,
+        email: users.email,
+        userType: users.userType,
+      },
+    }).from(listings)
+      .leftJoin(users, eq(listings.userId, users.id))
+      .where(whereClause)
+      .orderBy(desc(listings.createdAt))
+      .limit(parseInt(limit as string))
+      .offset((parseInt(page as string) - 1) * parseInt(limit as string));
+
+    // Her ilan için resimleri getir
+    const listingsWithImages = await Promise.all(
+      allListings.map(async ({ listing, user }) => {
+        const images = await req.db.select()
+          .from(listingImages)
+          .where(eq(listingImages.listing_id, listing.id))
+          .orderBy(listingImages.orderIndex);
+
+        return { listing, user, images };
+      })
+    );
+
+    // Toplam sayıyı al
+    const countResult = await req.db.select({ count: sql<number>`count(*)` })
+      .from(listings)
+      .where(whereClause);
+
+    const total = Number(countResult[0]?.count || 0);
+
+    // Format: listing ve user'ı birleştir, type-specific verileri ekle
+    const formattedListings = await Promise.all(
+      listingsWithImages.map(async ({ listing, user, images }) => {
+        // Get type-specific data using handler
+        let typeSpecificData = null;
+        try {
+          const handler = registry.getHandler(listing.listingType);
+          typeSpecificData = await handler.getTypeSpecific(req.db, listing.id);
+        } catch (e) {
+          // Handler bulunamazsa veya hata olursa typeSpecificData null kalır
+        }
+
+        // Type-specific veriyi doğru formatta ekle (yachtListing, partListing, vb.)
+        const result: any = {
+          ...listing,
+          user,
+          images,
+        };
+
+        if (typeSpecificData) {
+          // listing_id alanını çıkar, sadece type-specific alanları ekle
+          const { listing_id, ...data } = typeSpecificData;
+          const typeKey = `${listing.listingType}Listing`;
+          result[typeKey] = data;
+        }
+
+        return result;
+      })
+    );
+
+    res.json({
+      listings: formattedListings,
+      total,
+      page: parseInt(page as string),
+      limit: parseInt(limit as string),
     });
-
-    const total = await req.prisma.listing.count({ where });
-
-    res.json({ listings, total, page: parseInt(page as string), limit: parseInt(limit as string) });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error('İlan listeleme hatası:', error);
+    res.status(500).json({ message: 'Sunucu hatası' });
   }
 };
 
+/**
+ * İlan detayını getir
+ */
 export const getListingById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    const listing = await req.prisma.listing.findUnique({
-      where: { id },
-      include: { images: true, user: { select: { id: true, email: true, userType: true } } }
-    });
+    const listingResult = await req.db.select({
+      listing: listings,
+      user: {
+        id: users.id,
+        email: users.email,
+        userType: users.userType,
+      },
+    }).from(listings)
+      .leftJoin(users, eq(listings.userId, users.id))
+      .where(eq(listings.id, id))
+      .limit(1);
 
-    if (!listing) {
-      return res.status(404).json({ message: 'Listing not found' });
+    if (listingResult.length === 0) {
+      return res.status(404).json({ message: 'İlan bulunamadı' });
     }
 
-    res.json({ listing });
+    const { listing, user } = listingResult[0];
+
+    // Get type-specific data using handler
+    const handler = registry.getHandler(listing.listingType);
+    const typeSpecificData = await handler.getTypeSpecific(req.db, id);
+
+    // Get images
+    const images = await req.db.select()
+      .from(listingImages)
+      .where(eq(listingImages.listing_id, id))
+      .orderBy(listingImages.orderIndex);
+
+    // Format response to match frontend expectations (yachtListing, partListing, etc.)
+    const result: any = {
+      ...listing,
+      user,
+      images,
+    };
+
+    if (typeSpecificData) {
+      // Remove listing_id field, only add type-specific fields
+      const { listing_id, ...data } = typeSpecificData;
+      const typeKey = `${listing.listingType}Listing`;
+      result[typeKey] = data;
+    }
+
+    res.json({
+      listing: result,
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error('İlan detay getirme hatası:', error);
+    res.status(500).json({ message: 'Sunucu hatası' });
   }
 };
 
+/**
+ * İlan güncelle
+ */
 export const updateListing = async (req: Request, res: Response) => {
   try {
+    assertAuthenticated(req);
     const { id } = req.params;
     const data = req.body;
 
-    const listing = await req.prisma.listing.findUnique({ where: { id } });
+    const listingResult = await req.db.select().from(listings).where(eq(listings.id, id)).limit(1);
 
-    if (!listing) {
-      return res.status(404).json({ message: 'Listing not found' });
+    if (listingResult.length === 0) {
+      return res.status(404).json({ message: 'İlan bulunamadı' });
     }
+
+    const listing = listingResult[0];
 
     // Sadece sahibi veya admin
     if (listing.userId !== req.user.id && req.user.userType !== 'ADMIN') {
-      return res.status(403).json({ message: 'Forbidden' });
+      return res.status(403).json({ message: 'Yetkisiz erişim' });
     }
 
-    const updatedListing = await req.prisma.listing.update({
-      where: { id },
-      data
-    });
+    // Get handler for this listing type
+    const handler = registry.getHandler(listing.listingType);
 
-    res.json({ listing: updatedListing });
+    // Validate if type-specific data is provided
+    if (Object.keys(data).length > 0) {
+      const validation = handler.validate({ ...listing, ...data });
+      if (!validation.success) {
+        return res.status(400).json({ message: 'Validasyon hatası', errors: validation.errors });
+      }
+    }
+
+    // Update base listing
+    const updateData: any = {};
+    if (data.title) updateData.title = data.title;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.price) updateData.price = data.price.toString();
+    if (data.currency) updateData.currency = data.currency;
+    if (data.location !== undefined) updateData.location = data.location;
+    if (data.status) updateData.status = data.status;
+    if (data.rejectionReason !== undefined) updateData.rejectionReason = data.rejectionReason;
+
+    const updatedListings = await req.db.update(listings)
+      .set(updateData)
+      .where(eq(listings.id, id))
+      .returning();
+
+    // Update type-specific data using handler
+    await handler.updateTypeSpecific(req.db, id, data);
+
+    res.json({ listing: updatedListings[0] });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error('İlan güncelleme hatası:', error);
+    res.status(500).json({ message: 'Sunucu hatası' });
   }
 };
 
+/**
+ * İlan sil
+ */
 export const deleteListing = async (req: Request, res: Response) => {
   try {
+    assertAuthenticated(req);
     const { id } = req.params;
 
-    const listing = await req.prisma.listing.findUnique({ where: { id } });
+    const listingResult = await req.db.select().from(listings).where(eq(listings.id, id)).limit(1);
 
-    if (!listing) {
-      return res.status(404).json({ message: 'Listing not found' });
+    if (listingResult.length === 0) {
+      return res.status(404).json({ message: 'İlan bulunamadı' });
     }
+
+    const listing = listingResult[0];
 
     // Sadece sahibi veya admin
     if (listing.userId !== req.user.id && req.user.userType !== 'ADMIN') {
-      return res.status(403).json({ message: 'Forbidden' });
+      return res.status(403).json({ message: 'Yetkisiz erişim' });
     }
 
-    await req.prisma.listing.update({
-      where: { id },
-      data: { status: 'DELETED' }
-    });
+    await req.db.update(listings)
+      .set({ status: 'DELETED' })
+      .where(eq(listings.id, id));
 
-    res.json({ message: 'Listing deleted' });
+    res.json({ message: 'İlan silindi' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error('İlan silme hatası:', error);
+    res.status(500).json({ message: 'Sunucu hatası' });
+  }
+};
+
+/**
+ * Belirli bir listing type'ının filtre şemasını getir
+ *
+ * Bu endpoint frontend'in dinamik filtre UI oluşturması için
+ * type-specific filtre şemasını döndürür.
+ */
+export const getFilterSchema = async (req: Request, res: Response) => {
+  try {
+    const { type } = req.params;
+
+    if (!registry.hasType(type)) {
+      return res.status(404).json({ message: 'Listing type bulunamadı' });
+    }
+
+    const handler = registry.getHandler(type);
+    const filters = handler.getFilterSchema();
+
+    res.json({ filters });
+  } catch (error) {
+    console.error('Filtre şeması getirme hatası:', error);
+    res.status(500).json({ message: 'Sunucu hatası' });
+  }
+};
+
+/**
+ * Tüm listing type'larını getir (frontend için)
+ * 
+ * Bu endpoint frontend'in dinamik form oluşturması için
+ * tüm listing type'larının şemalarını döndürür.
+ */
+export const getListingTypes = async (req: Request, res: Response) => {
+  try {
+    const schemas = registry.getAllSchemas();
+    res.json({ types: schemas });
+  } catch (error) {
+    console.error('Listing type\'ları getirme hatası:', error);
+    res.status(500).json({ message: 'Sunucu hatası' });
+  }
+};
+
+/**
+ * Belirli bir listing type'ının şemasını getir
+ */
+export const getListingTypeSchema = async (req: Request, res: Response) => {
+  try {
+    const { type } = req.params;
+
+    if (!registry.hasType(type)) {
+      return res.status(404).json({ message: 'Listing type bulunamadı' });
+    }
+
+    const handler = registry.getHandler(type);
+    const schema = handler.getSchema();
+
+    res.json({ schema });
+  } catch (error) {
+    console.error('Listing type şeması getirme hatası:', error);
+    res.status(500).json({ message: 'Sunucu hatası' });
   }
 };

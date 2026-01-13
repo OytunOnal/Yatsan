@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import { z } from 'zod';
 import { EmailService } from '../services/email.service';
 import { checkEmailRateLimit } from '../middleware/rateLimit';
+import { eq, and, gt } from 'drizzle-orm';
 import {
   registerSchema,
   loginSchema,
@@ -14,16 +15,17 @@ import {
   forgotPasswordSchema,
   resetPasswordSchema
 } from '../validations/auth.validation';
+import { users } from '../db/schema';
 
-const JWT_SECRET = 'your-secret-key'; // In production, use env
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key-change-in-production';
 
 export const register = async (req: Request, res: Response) => {
   try {
     const { firstName, lastName, email, password, phone, userType, kvkkApproved } = registerSchema.parse(req.body);
 
     // Email kontrolü
-    const existingUser = await req.prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
+    const existingUsers = await req.db.select().from(users).where(eq(users.email, email));
+    if (existingUsers.length > 0) {
       return res.status(400).json({ success: false, message: 'Email zaten kayıtlı' });
     }
 
@@ -35,20 +37,20 @@ export const register = async (req: Request, res: Response) => {
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     // User oluştur
-    const user = await req.prisma.user.create({
-      data: {
-        firstName,
-        lastName,
-        email,
-        password: hashedPassword,
-        phone,
-        userType,
-        kvkkApproved,
-        phoneVerified: false, // Will be verified via email
-        resetPasswordToken: verificationToken, // Reuse the field for email verification
-        emailVerificationExpires: verificationExpires
-      }
-    });
+    const newUsers = await req.db.insert(users).values({
+      firstName,
+      lastName,
+      email,
+      password: hashedPassword,
+      phone,
+      userType,
+      kvkkApproved,
+      phoneVerified: false,
+      resetPasswordToken: verificationToken,
+      emailVerificationExpires: verificationExpires
+    }).returning();
+
+    const user = newUsers[0];
 
     // Email gönder
     const verificationLink = `http://localhost:3001/api/auth/confirm-email/${verificationToken}`;
@@ -69,7 +71,9 @@ export const login = async (req: Request, res: Response) => {
     const { email, password } = loginSchema.parse(req.body);
 
     // User bul
-    const user = await req.prisma.user.findUnique({ where: { email } });
+    const foundUsers = await req.db.select().from(users).where(eq(users.email, email));
+    const user = foundUsers[0];
+
     if (!user) {
       return res.status(401).json({ success: false, message: 'Geçersiz kullanıcı bilgileri' });
     }
@@ -116,12 +120,12 @@ export const verifySMS = async (req: Request, res: Response) => {
     }
 
     // User bul ve güncelle
-    const user = await req.prisma.user.update({
-      where: { phone },
-      data: {
-        phoneVerified: true
-      }
-    });
+    const updatedUsers = await req.db.update(users)
+      .set({ phoneVerified: true })
+      .where(eq(users.phone, phone))
+      .returning();
+
+    const user = updatedUsers[0];
 
     // JWT token oluştur
     const token = jwt.sign(
@@ -148,8 +152,8 @@ export const checkEmail = async (req: Request, res: Response) => {
   try {
     const { email } = checkEmailSchema.parse(req.body);
 
-    const existingUser = await req.prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
+    const existingUsers = await req.db.select().from(users).where(eq(users.email, email));
+    if (existingUsers.length > 0) {
       return res.status(400).json({ success: false, message: 'Email zaten kayıtlı' });
     }
 
@@ -167,8 +171,8 @@ export const checkPhone = async (req: Request, res: Response) => {
   try {
     const { phone } = checkPhoneSchema.parse(req.body);
 
-    const existingUser = await req.prisma.user.findUnique({ where: { phone } });
-    if (existingUser) {
+    const existingUsers = await req.db.select().from(users).where(eq(users.phone, phone));
+    if (existingUsers.length > 0) {
       return res.status(400).json({ success: false, message: 'Telefon numarası zaten kayıtlı' });
     }
 
@@ -190,10 +194,11 @@ export const forgotPassword = async (req: Request, res: Response) => {
       return res.status(429).json({ success: false, message: 'Bu email için çok fazla şifre sıfırlama isteği yapıldı. Lütfen daha sonra tekrar deneyin.' });
     }
 
-    const user = await req.prisma.user.findUnique({ where: { email } });
+    const foundUsers = await req.db.select().from(users).where(eq(users.email, email));
+    const user = foundUsers[0];
+
     if (!user) {
-      // For security, always return success
-      return res.json({ success: true, message: 'If an account with that email exists, a reset link has been sent.' });
+      return res.status(404).json({ success: false, message: 'Bu email adresi ile kayıtlı bir hesap bulunamadı' });
     }
 
     // Generate token
@@ -201,19 +206,18 @@ export const forgotPassword = async (req: Request, res: Response) => {
     const resetExpires = new Date(Date.now() + 3600000); // 1 hour
 
     // Update user
-    await req.prisma.user.update({
-      where: { id: user.id },
-      data: {
+    await req.db.update(users)
+      .set({
         resetPasswordToken: resetToken,
         resetPasswordExpires: resetExpires
-      }
-    });
+      })
+      .where(eq(users.id, user.id));
 
     // Send email
     const resetLink = `http://localhost:3000/reset-password?token=${resetToken}`;
     await EmailService.sendPasswordResetEmail(email, resetLink);
 
-    res.json({ success: true, message: 'If an account with that email exists, a reset link has been sent.' });
+    res.json({ success: true, message: 'Şifre sıfırlama linki email adresinize gönderildi' });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ success: false, message: 'Validation error', errors: error.errors });
@@ -227,14 +231,14 @@ export const validateResetToken = async (req: Request, res: Response) => {
   try {
     const { token } = req.params;
 
-    const user = await req.prisma.user.findFirst({
-      where: {
-        resetPasswordToken: token,
-        resetPasswordExpires: {
-          gt: new Date()
-        }
-      }
-    });
+    const foundUsers = await req.db.select().from(users).where(
+      and(
+        eq(users.resetPasswordToken, token),
+        gt(users.resetPasswordExpires!, new Date())
+      )
+    );
+
+    const user = foundUsers[0];
 
     if (!user) {
       return res.json({ valid: false, error: 'Token geçersiz veya süresi dolmuş' });
@@ -251,14 +255,14 @@ export const resetPassword = async (req: Request, res: Response) => {
   try {
     const { token, password } = resetPasswordSchema.parse(req.body);
 
-    const user = await req.prisma.user.findFirst({
-      where: {
-        resetPasswordToken: token,
-        resetPasswordExpires: {
-          gt: new Date()
-        }
-      }
-    });
+    const foundUsers = await req.db.select().from(users).where(
+      and(
+        eq(users.resetPasswordToken, token),
+        gt(users.resetPasswordExpires!, new Date())
+      )
+    );
+
+    const user = foundUsers[0];
 
     if (!user) {
       return res.status(400).json({ success: false, message: 'Token geçersiz veya süresi dolmuş' });
@@ -266,15 +270,14 @@ export const resetPassword = async (req: Request, res: Response) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    await req.prisma.user.update({
-      where: { id: user.id },
-      data: {
+    await req.db.update(users)
+      .set({
         password: hashedPassword,
         resetPasswordToken: null,
         resetPasswordExpires: null,
         lastPasswordReset: new Date()
-      }
-    });
+      })
+      .where(eq(users.id, user.id));
 
     res.json({ success: true, message: 'Şifre başarıyla güncellendi' });
   } catch (error) {
@@ -290,11 +293,11 @@ export const confirmEmail = async (req: Request, res: Response) => {
   try {
     const { token } = req.params;
 
-    const user = await req.prisma.user.findFirst({
-      where: {
-        resetPasswordToken: token
-      }
-    });
+    const foundUsers = await req.db.select().from(users).where(
+      eq(users.resetPasswordToken, token)
+    );
+
+    const user = foundUsers[0];
 
     if (!user) {
       return res.status(400).send(`
@@ -309,9 +312,7 @@ export const confirmEmail = async (req: Request, res: Response) => {
     // Check if verification has expired
     if (!user.emailVerificationExpires || user.emailVerificationExpires < new Date()) {
       // Delete the user if verification expired
-      await req.prisma.user.delete({
-        where: { id: user.id }
-      });
+      await req.db.delete(users).where(eq(users.id, user.id));
       return res.status(400).send(`
         <div style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
           <h2>Doğrulama Süresi Doldu</h2>
@@ -322,14 +323,13 @@ export const confirmEmail = async (req: Request, res: Response) => {
     }
 
     // Hesabı doğrula
-    await req.prisma.user.update({
-      where: { id: user.id },
-      data: {
+    await req.db.update(users)
+      .set({
         phoneVerified: true,
         resetPasswordToken: null,
         emailVerificationExpires: null
-      }
-    });
+      })
+      .where(eq(users.id, user.id));
 
     res.send(`
       <div style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">

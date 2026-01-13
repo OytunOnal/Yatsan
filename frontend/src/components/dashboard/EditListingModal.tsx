@@ -27,14 +27,15 @@ interface EditListingModalProps {
   onClose: () => void;
   listing: Listing | null;
   onSave: (data: EditListingFormData) => void;
+  isLoading?: boolean;
 }
 
-export default function EditListingModal({ isOpen, onClose, listing, onSave }: EditListingModalProps) {
+export default function EditListingModal({ isOpen, onClose, listing, onSave, isLoading = false }: EditListingModalProps) {
   const {
     register,
     handleSubmit,
     reset,
-    formState: { errors },
+    formState: { errors, isSubmitting },
   } = useForm<EditListingFormData>({
     resolver: zodResolver(editListingSchema),
   });
@@ -52,7 +53,6 @@ export default function EditListingModal({ isOpen, onClose, listing, onSave }: E
 
   const onSubmit = (data: EditListingFormData) => {
     onSave(data);
-    onClose();
   };
 
   if (!isOpen) return null;
@@ -116,15 +116,24 @@ export default function EditListingModal({ isOpen, onClose, listing, onSave }: E
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+              disabled={isLoading}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               İptal
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-blue-700"
+              disabled={isLoading}
+              className="px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
             >
-              Güncelle
+              {isLoading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Güncelleniyor...
+                </>
+              ) : (
+                'Güncelle'
+              )}
             </button>
           </div>
         </form>

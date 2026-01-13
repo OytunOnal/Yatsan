@@ -65,7 +65,7 @@ export default function ImageGallery({ images, title }: ImageGalleryProps) {
               key={index}
               onClick={() => selectImage(index)}
               className={`flex-shrink-0 w-20 h-20 rounded border-2 ${
-                index === currentIndex ? 'border-primary' : 'border-gray-300'
+                index === currentIndex ? 'border-primary-600' : 'border-gray-300'
               }`}
             >
               <img

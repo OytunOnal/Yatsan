@@ -1,16 +1,18 @@
 import { Request, Response, NextFunction } from 'express';
-import prisma from '../lib/prisma';
+import { db } from '../lib/db';
+import type { AuthUser } from '../types';
 
+// Extend Express Request interface
 declare global {
   namespace Express {
     interface Request {
-      prisma: typeof prisma;
+      user?: AuthUser;
+      db: typeof db; // Non-null because databaseMiddleware always runs first
     }
   }
 }
 
 export const databaseMiddleware = (req: Request, res: Response, next: NextFunction) => {
-  req.prisma = prisma;
-  // Database connection kontrolü burada eklenebilir
+  req.db = db;
   next();
 };

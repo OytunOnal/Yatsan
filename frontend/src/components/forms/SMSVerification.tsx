@@ -78,7 +78,7 @@ export default function SMSVerification({ onComplete, onResend }: SMSVerificatio
         ) : (
           <button
             onClick={handleResend}
-            className="text-sm text-primary hover:text-blue-700"
+            className="text-sm text-primary-600 hover:text-primary-700"
           >
             Kodu tekrar gönder
           </button>

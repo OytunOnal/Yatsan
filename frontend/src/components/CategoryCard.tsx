@@ -8,9 +8,17 @@ interface CategoryCardProps {
   description: string;
   category: string;
   count: number;
+  color?: 'blue' | 'orange' | 'teal' | 'purple';
 }
 
-export default function CategoryCard({ icon, title, description, category, count }: CategoryCardProps) {
+const colorClasses = {
+  blue: 'category-yacht',
+  orange: 'category-part',
+  teal: 'category-marina',
+  purple: 'category-crew',
+};
+
+export default function CategoryCard({ icon, title, description, category, count, color = 'blue' }: CategoryCardProps) {
   const router = useRouter();
 
   const handleClick = () => {
@@ -19,21 +27,22 @@ export default function CategoryCard({ icon, title, description, category, count
 
   return (
     <div
-      className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg hover:scale-105 transition-all duration-300 cursor-pointer"
+      className={`card-hover p-6 text-center cursor-pointer ${colorClasses[color]}`}
       onClick={handleClick}
     >
-      <div className="text-primary text-4xl mb-4">
+      <div className="w-16 h-16 rounded-xl bg-white/80 backdrop-blur-sm flex items-center justify-center mx-auto mb-4 shadow-sm">
         {icon}
       </div>
-      <h3 className="text-xl font-semibold mb-2 text-gray-800">
+      <h3 className="text-lg font-semibold text-gray-900 mb-2">
         {title}
       </h3>
-      <p className="text-gray-600 mb-2">
+      <p className="text-sm text-gray-600 mb-3">
         {description}
       </p>
-      <p className="text-sm text-primary font-medium">
-        {count}+ ilan
-      </p>
+      <div className="flex items-center justify-center gap-1">
+        <span className="text-2xl font-bold text-gray-900">{count}</span>
+        <span className="text-sm text-gray-600">ilan</span>
+      </div>
     </div>
   );
 }

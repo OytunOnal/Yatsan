@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/store/authStore';
 
 interface ContactButtonsProps {
   phone: string;
@@ -9,8 +11,15 @@ interface ContactButtonsProps {
 
 export default function ContactButtons({ phone, sellerId }: ContactButtonsProps) {
   const [showPhone, setShowPhone] = useState(false);
+  const router = useRouter();
+  const { token } = useAuthStore();
 
   const handleMessage = () => {
+    // Kullanıcı giriş yapmamışsa login sayfasına yönlendir
+    if (!token) {
+      router.push('/login');
+      return;
+    }
     // TODO: Implement messaging functionality
     alert('Mesaj gönderme özelliği yakında eklenecek');
   };
@@ -23,7 +32,7 @@ export default function ContactButtons({ phone, sellerId }: ContactButtonsProps)
     <div className="space-y-3">
       <button
         onClick={handleMessage}
-        className="w-full bg-primary text-white py-3 px-4 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+        className="w-full bg-primary-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-primary-700 transition-colors"
       >
         Mesaj Gönder
       </button>
