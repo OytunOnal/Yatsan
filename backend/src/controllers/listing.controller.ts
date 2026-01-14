@@ -3,6 +3,8 @@ import { eq, and, or, desc, sql, like } from 'drizzle-orm';
 import { listings, listingImages, users } from '../db/schema';
 import { ListingHandlerRegistry } from '../handlers/listing';
 import { assertAuthenticated } from '../types';
+import { processImage } from '../middleware/upload';
+import path from 'path';
 
 // Get the singleton registry instance
 const registry = ListingHandlerRegistry.getInstance();
@@ -23,14 +25,196 @@ const registry = ListingHandlerRegistry.getInstance();
 export const createListing = async (req: Request, res: Response) => {
   try {
     assertAuthenticated(req);
-    const { listingType, ...data } = req.body;
+    
+    const { listingType, price, title, description, location, ...data } = req.body;
+
+    if (!listingType) {
+      return res.status(400).json({ message: 'listingType gereklidir' });
+    }
+
+    // Validate string lengths
+    if (title && title.length > 200) {
+      return res.status(400).json({ message: 'Başlık en fazla 200 karakter olabilir' });
+    }
+    if (description && description.length > 5000) {
+      return res.status(400).json({ message: 'Açıklama en fazla 5000 karakter olabilir' });
+    }
+    if (location && location.length > 200) {
+      return res.status(400).json({ message: 'Konum en fazla 200 karakter olabilir' });
+    }
+
+    // Type-specific string validations
+    if (listingType === 'yacht') {
+      if (data.engineBrand && data.engineBrand.length > 100) {
+        return res.status(400).json({ message: 'Motor markası en fazla 100 karakter olabilir' });
+      }
+      if (data.equipment && data.equipment.length > 2000) {
+        return res.status(400).json({ message: 'Ekipman listesi en fazla 2000 karakter olabilir' });
+      }
+    } else if (listingType === 'part') {
+      if (data.brand && data.brand.length > 100) {
+        return res.status(400).json({ message: 'Marka en fazla 100 karakter olabilir' });
+      }
+      if (data.oemCode && data.oemCode.length > 50) {
+        return res.status(400).json({ message: 'OEM kodu en fazla 50 karakter olabilir' });
+      }
+      if (data.compatibility && data.compatibility.length > 2000) {
+        return res.status(400).json({ message: 'Uyumlu modeller en fazla 2000 karakter olabilir' });
+      }
+    } else if (listingType === 'marina') {
+      if (data.services && data.services.length > 2000) {
+        return res.status(400).json({ message: 'Hizmetler en fazla 2000 karakter olabilir' });
+      }
+      if (data.availability && data.availability.length > 1000) {
+        return res.status(400).json({ message: 'Müsaitlik en fazla 1000 karakter olabilir' });
+      }
+    } else if (listingType === 'crew') {
+      if (data.certifications && data.certifications.length > 2000) {
+        return res.status(400).json({ message: 'Sertifikalar en fazla 2000 karakter olabilir' });
+      }
+    }
+
+    // Validate and convert price
+    let parsedPrice = 0;
+    if (price) {
+      parsedPrice = parseFloat(price);
+      if (isNaN(parsedPrice) || parsedPrice <= 0) {
+        return res.status(400).json({ message: 'Geçerli bir fiyat giriniz' });
+      }
+      // Database price field: decimal(12, 2) - max value is 10^10 = 10,000,000,000
+      if (parsedPrice > 9999999999) {
+        return res.status(400).json({ message: 'Fiyat 9.999.999.999\'dan küçük olmalıdır' });
+      }
+    }
+
+    // Convert string values to numbers (FormData sends everything as strings)
+    const processedData: any = {
+      title,
+      description,
+      location,
+      price: parsedPrice,
+      ...data,
+    };
+
+    // Convert numeric fields based on listing type
+    if (listingType === 'yacht') {
+      if (data.year) {
+        const year = parseInt(data.year);
+        if (year < 1970 || year > new Date().getFullYear()) {
+          return res.status(400).json({ message: 'Yıl 1970 ile ' + new Date().getFullYear() + ' arasında olmalıdır' });
+        }
+        processedData.year = year;
+      }
+      if (data.length) {
+        const len = parseFloat(data.length);
+        if (len <= 0 || len > 9999.99) {
+          return res.status(400).json({ message: 'Uzunluk 0 ile 9999.99 metre arasında olmalıdır' });
+        }
+        processedData.length = len;
+      }
+      if (data.beam) {
+        const bm = parseFloat(data.beam);
+        if (bm <= 0 || bm > 9999.99) {
+          return res.status(400).json({ message: 'Genişlik 0 ile 9999.99 metre arasında olmalıdır' });
+        }
+        processedData.beam = bm;
+      }
+      if (data.draft) {
+        const dr = parseFloat(data.draft);
+        if (dr <= 0 || dr > 9999.99) {
+          return res.status(400).json({ message: 'Sükunet derinliği 0 ile 9999.99 metre arasında olmalıdır' });
+        }
+        processedData.draft = dr;
+      }
+      if (data.engineHours) {
+        const hours = parseInt(data.engineHours);
+        if (hours < 0 || hours > 999999) {
+          return res.status(400).json({ message: 'Motor saati 0 ile 999999 arasında olmalıdır' });
+        }
+        processedData.engineHours = hours;
+      }
+      if (data.engineHP) {
+        const hp = parseInt(data.engineHP);
+        if (hp < 0 || hp > 99999) {
+          return res.status(400).json({ message: 'Motor gücü 0 ile 99999 HP arasında olmalıdır' });
+        }
+        processedData.engineHP = hp;
+      }
+      if (data.cruisingSpeed) {
+        const speed = parseInt(data.cruisingSpeed);
+        if (speed < 0 || speed > 999) {
+          return res.status(400).json({ message: 'Seyir hızı 0 ile 999 knot arasında olmalıdır' });
+        }
+        processedData.cruisingSpeed = speed;
+      }
+      if (data.maxSpeed) {
+        const speed = parseInt(data.maxSpeed);
+        if (speed < 0 || speed > 999) {
+          return res.status(400).json({ message: 'Maksimum hız 0 ile 999 knot arasında olmalıdır' });
+        }
+        processedData.maxSpeed = speed;
+      }
+      if (data.cabinCount) {
+        const count = parseInt(data.cabinCount);
+        if (count < 0 || count > 99) {
+          return res.status(400).json({ message: 'Kabin sayısı 0 ile 99 arasında olmalıdır' });
+        }
+        processedData.cabinCount = count;
+      }
+      if (data.bedCount) {
+        const count = parseInt(data.bedCount);
+        if (count < 0 || count > 99) {
+          return res.status(400).json({ message: 'Yatak sayısı 0 ile 99 arasında olmalıdır' });
+        }
+        processedData.bedCount = count;
+      }
+      if (data.bathroomCount) {
+        const count = parseInt(data.bathroomCount);
+        if (count < 0 || count > 99) {
+          return res.status(400).json({ message: 'Banyo sayısı 0 ile 99 arasında olmalıdır' });
+        }
+        processedData.bathroomCount = count;
+      }
+    } else if (listingType === 'marina') {
+      if (data.maxLength) {
+        const len = parseFloat(data.maxLength);
+        if (len <= 0 || len > 9999.99) {
+          return res.status(400).json({ message: 'Maksimum uzunluk 0 ile 9999.99 metre arasında olmalıdır' });
+        }
+        processedData.maxLength = len;
+      }
+      if (data.maxBeam) {
+        const bm = parseFloat(data.maxBeam);
+        if (bm <= 0 || bm > 9999.99) {
+          return res.status(400).json({ message: 'Maksimum genişlik 0 ile 9999.99 metre arasında olmalıdır' });
+        }
+        processedData.maxBeam = bm;
+      }
+      if (data.maxDraft) {
+        const dr = parseFloat(data.maxDraft);
+        if (dr < 0 || dr > 9999.99) {
+          return res.status(400).json({ message: 'Maksimum sükunet derinliği 0 ile 9999.99 metre arasında olmalıdır' });
+        }
+        processedData.maxDraft = dr;
+      }
+    } else if (listingType === 'crew') {
+      if (data.experience) {
+        const exp = parseInt(data.experience);
+        if (exp < 0 || exp > 99) {
+          return res.status(400).json({ message: 'Deneyim 0 ile 99 yıl arasında olmalıdır' });
+        }
+        processedData.experience = exp;
+      }
+    }
 
     // Get handler for this type
     const handler = registry.getHandler(listingType);
 
     // Validate using handler
-    const validation = handler.validate(data);
+    const validation = handler.validate(processedData);
     if (!validation.success) {
+      console.log('Validasyon hatası - processedData:', JSON.stringify(processedData, null, 2));
+      console.log('Validasyon hatası - errors:', JSON.stringify(validation.errors, null, 2));
       return res.status(400).json({ message: 'Validasyon hatası', errors: validation.errors });
     }
 
@@ -42,7 +226,7 @@ export const createListing = async (req: Request, res: Response) => {
       title: validatedData.title,
       description: validatedData.description,
       price: validatedData.price?.toString() || '0',
-      currency: validatedData.currency,
+      currency: validatedData.currency || 'TRY',
       listingType,
       status: 'PENDING',
       location: validatedData.location,
@@ -53,14 +237,32 @@ export const createListing = async (req: Request, res: Response) => {
     // Create type-specific data using handler
     await handler.createTypeSpecific(req.db, listing.id, validatedData);
 
-    // Handle images
+    // Handle images with processing
     if (req.files && Array.isArray(req.files)) {
-      const images = req.files.map((file: Express.Multer.File, index: number) => ({
-        listing_id: listing.id,
-        url: `/uploads/${file.filename}`,
-        orderIndex: index,
-      }));
-      await req.db.insert(listingImages).values(images);
+      // Process images (resize and optimize)
+      const processedImages = await Promise.all(
+        req.files.map(async (file: Express.Multer.File) => {
+          const filePath = path.join(process.cwd(), 'uploads', file.filename);
+          try {
+            await processImage(filePath);
+          } catch (error) {
+            console.error('Error processing image:', error);
+          }
+          return {
+            listing_id: listing.id,
+            url: `/uploads/${file.filename}`,
+            orderIndex: 0,
+          };
+        })
+      );
+
+      // Update orderIndex
+      processedImages.forEach((img, index) => img.orderIndex = index);
+
+      // Only insert if there are images
+      if (processedImages.length > 0) {
+        await req.db.insert(listingImages).values(processedImages);
+      }
     }
 
     res.status(201).json({ listing });

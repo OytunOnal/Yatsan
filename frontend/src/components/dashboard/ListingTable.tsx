@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Listing, ListingType } from '@/lib/api';
+import { Listing, ListingType, getImageUrl } from '@/lib/api';
 
 interface ListingTableProps {
   listings: Listing[];
@@ -132,7 +132,7 @@ export default function ListingTable({ listings, onEdit, onDelete, onPreview, ac
                     <div className="flex items-start gap-3">
                       {listing.images && listing.images.length > 0 && (
                         <img
-                          src={listing.images[0].url}
+                          src={getImageUrl(listing.images[0].url) || '/placeholder-listing.jpg'}
                           alt={listing.title}
                           className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
                         />

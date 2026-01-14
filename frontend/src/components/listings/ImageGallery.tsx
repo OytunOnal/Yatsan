@@ -33,11 +33,11 @@ export default function ImageGallery({ images, title }: ImageGalleryProps) {
   return (
     <div className="space-y-4">
       {/* Main Image */}
-      <div className="relative">
+      <div className="relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden">
         <img
           src={images[currentIndex]}
           alt={`${title} - ${currentIndex + 1}`}
-          className="w-full h-96 object-cover rounded-lg"
+          className="w-full h-full object-contain rounded-lg"
         />
         {images.length > 1 && (
           <>

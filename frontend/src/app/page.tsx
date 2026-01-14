@@ -10,10 +10,10 @@ async function getCategoryCounts() {
     const listings = data.listings || [];
 
     const counts = {
-      YACHT: listings.filter((l: any) => l.category === 'YACHT').length,
-      PART: listings.filter((l: any) => l.category === 'PART').length,
-      MARINA: listings.filter((l: any) => l.category === 'MARINA').length,
-      CREW: listings.filter((l: any) => l.category === 'CREW').length,
+      YACHT: listings.filter((l: any) => l.listingType === 'yacht').length,
+      PART: listings.filter((l: any) => l.listingType === 'part').length,
+      MARINA: listings.filter((l: any) => l.listingType === 'marina').length,
+      CREW: listings.filter((l: any) => l.listingType === 'crew').length,
     };
 
     return counts;

@@ -1,12 +1,26 @@
 import axios from 'axios';
 import { useAuthStore } from '@/store/authStore';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api',
+  baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+// Helper function to get full image URL
+export const getImageUrl = (url: string | null | undefined): string | null => {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  // Remove /api from BASE_URL and construct full URL
+  const baseUrl = BASE_URL.replace('/api', '');
+  return `${baseUrl}${url}`;
+};
 
 // Request interceptor to add auth token
 api.interceptors.request.use(
@@ -370,13 +384,48 @@ export const createYachtListing = async (data: {
   bathroomCount?: number;
   equipment?: string;
   condition: string;
+  images?: File[];
 }): Promise<{ listing: Listing }> => {
-  const response = await api.post('/listings/yacht', data);
+  const formData = new FormData();
+  formData.append('listingType', 'yacht');
+  formData.append('title', data.title);
+  formData.append('description', data.description);
+  formData.append('price', data.price.toString());
+  formData.append('currency', data.currency);
+  formData.append('location', data.location);
+  formData.append('yachtType', data.yachtType);
+  formData.append('year', data.year.toString());
+  formData.append('length', data.length);
+  formData.append('beam', data.beam);
+  formData.append('draft', data.draft);
+  if (data.engineBrand) formData.append('engineBrand', data.engineBrand);
+  if (data.engineHours) formData.append('engineHours', data.engineHours.toString());
+  if (data.engineHP) formData.append('engineHP', data.engineHP.toString());
+  if (data.fuelType) formData.append('fuelType', data.fuelType);
+  if (data.cruisingSpeed) formData.append('cruisingSpeed', data.cruisingSpeed.toString());
+  if (data.maxSpeed) formData.append('maxSpeed', data.maxSpeed.toString());
+  if (data.cabinCount) formData.append('cabinCount', data.cabinCount.toString());
+  if (data.bedCount) formData.append('bedCount', data.bedCount.toString());
+  if (data.bathroomCount) formData.append('bathroomCount', data.bathroomCount.toString());
+  if (data.equipment) formData.append('equipment', data.equipment);
+  formData.append('condition', data.condition);
+  
+  if (data.images && data.images.length > 0) {
+    data.images.forEach((file) => {
+      formData.append('images', file);
+    });
+  }
+
+  const response = await api.post('/listings', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
   return response.data;
 };
 
 export const getYachtListing = async (id: string): Promise<{ listing: Listing }> => {
-  const response = await api.get(`/listings/yacht/${id}`);
+  const response = await api.get(`/listings/${id}`);
   return response.data;
 };
 
@@ -406,7 +455,7 @@ export const updateYachtListing = async (
     condition: string;
   }>
 ): Promise<{ listing: Listing }> => {
-  const response = await api.put(`/listings/yacht/${id}`, data);
+  const response = await api.put(`/listings/${id}`, data);
   return response.data;
 };
 
@@ -421,13 +470,36 @@ export const createPartListing = async (data: {
   brand: string;
   oemCode?: string;
   compatibility?: string;
+  images?: File[];
 }): Promise<{ listing: Listing }> => {
-  const response = await api.post('/listings/part', data);
+  const formData = new FormData();
+  formData.append('listingType', 'part');
+  formData.append('title', data.title);
+  formData.append('description', data.description);
+  formData.append('price', data.price.toString());
+  formData.append('currency', data.currency);
+  formData.append('location', data.location);
+  formData.append('condition', data.condition);
+  formData.append('brand', data.brand);
+  if (data.oemCode) formData.append('oemCode', data.oemCode);
+  if (data.compatibility) formData.append('compatibility', data.compatibility);
+  
+  if (data.images && data.images.length > 0) {
+    data.images.forEach((file) => {
+      formData.append('images', file);
+    });
+  }
+
+  const response = await api.post('/listings', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
   return response.data;
 };
 
 export const getPartListing = async (id: string): Promise<{ listing: Listing }> => {
-  const response = await api.get(`/listings/part/${id}`);
+  const response = await api.get(`/listings/${id}`);
   return response.data;
 };
 
@@ -445,7 +517,7 @@ export const updatePartListing = async (
     compatibility: string;
   }>
 ): Promise<{ listing: Listing }> => {
-  const response = await api.put(`/listings/part/${id}`, data);
+  const response = await api.put(`/listings/${id}`, data);
   return response.data;
 };
 
@@ -462,13 +534,38 @@ export const createMarinaListing = async (data: {
   maxDraft?: string;
   services: string;
   availability?: string;
+  images?: File[];
 }): Promise<{ listing: Listing }> => {
-  const response = await api.post('/listings/marina', data);
+  const formData = new FormData();
+  formData.append('listingType', 'marina');
+  formData.append('title', data.title);
+  formData.append('description', data.description);
+  formData.append('price', data.price.toString());
+  formData.append('currency', data.currency);
+  formData.append('location', data.location);
+  formData.append('priceType', data.priceType);
+  formData.append('maxLength', data.maxLength);
+  formData.append('maxBeam', data.maxBeam);
+  if (data.maxDraft) formData.append('maxDraft', data.maxDraft);
+  formData.append('services', data.services);
+  if (data.availability) formData.append('availability', data.availability);
+  
+  if (data.images && data.images.length > 0) {
+    data.images.forEach((file) => {
+      formData.append('images', file);
+    });
+  }
+
+  const response = await api.post('/listings', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
   return response.data;
 };
 
 export const getMarinaListing = async (id: string): Promise<{ listing: Listing }> => {
-  const response = await api.get(`/listings/marina/${id}`);
+  const response = await api.get(`/listings/${id}`);
   return response.data;
 };
 
@@ -488,7 +585,7 @@ export const updateMarinaListing = async (
     availability: string;
   }>
 ): Promise<{ listing: Listing }> => {
-  const response = await api.put(`/listings/marina/${id}`, data);
+  const response = await api.put(`/listings/${id}`, data);
   return response.data;
 };
 
@@ -508,13 +605,41 @@ export const createCrewListing = async (data: {
   salary?: string;
   salaryCurrency?: string;
   salaryPeriod?: string;
+  images?: File[];
 }): Promise<{ listing: Listing }> => {
-  const response = await api.post('/listings/crew', data);
+  const formData = new FormData();
+  formData.append('listingType', 'crew');
+  formData.append('title', data.title);
+  formData.append('description', data.description);
+  if (data.price) formData.append('price', data.price.toString());
+  if (data.currency) formData.append('currency', data.currency);
+  formData.append('location', data.location);
+  formData.append('position', data.position);
+  formData.append('experience', data.experience.toString());
+  if (data.certifications) formData.append('certifications', data.certifications);
+  formData.append('availability', data.availability);
+  if (data.availableFrom) formData.append('availableFrom', data.availableFrom);
+  if (data.availableTo) formData.append('availableTo', data.availableTo);
+  if (data.salary) formData.append('salary', data.salary);
+  if (data.salaryCurrency) formData.append('salaryCurrency', data.salaryCurrency);
+  if (data.salaryPeriod) formData.append('salaryPeriod', data.salaryPeriod);
+  
+  if (data.images && data.images.length > 0) {
+    data.images.forEach((file) => {
+      formData.append('images', file);
+    });
+  }
+
+  const response = await api.post('/listings', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
   return response.data;
 };
 
 export const getCrewListing = async (id: string): Promise<{ listing: Listing }> => {
-  const response = await api.get(`/listings/crew/${id}`);
+  const response = await api.get(`/listings/${id}`);
   return response.data;
 };
 
@@ -537,7 +662,7 @@ export const updateCrewListing = async (
     salaryPeriod: string;
   }>
 ): Promise<{ listing: Listing }> => {
-  const response = await api.put(`/listings/crew/${id}`, data);
+  const response = await api.put(`/listings/${id}`, data);
   return response.data;
 };
 

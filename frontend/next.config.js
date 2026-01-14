@@ -43,7 +43,7 @@ const nextConfig = {
               "default-src 'self';",
               "script-src 'self' 'unsafe-eval' 'unsafe-inline';",
               "style-src 'self' 'unsafe-inline';",
-              "img-src 'self' data: https: blob:;",
+              "img-src 'self' data: https: blob: http://localhost:3001;",
               "font-src 'self' data:;",
               "connect-src 'self' http://localhost:3001 https://api.yatsan.com;",
               "media-src 'self' blob:;",

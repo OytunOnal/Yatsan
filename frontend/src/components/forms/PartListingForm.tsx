@@ -28,6 +28,19 @@ export default function PartListingForm({ onSuccess }: PartListingFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [images, setImages] = useState<File[]>([]);
+  
+  // maxLength kısıtlamaları
+  const MAX_LENGTHS: Record<string, number> = {
+    title: 200,
+    description: 5000,
+    location: 200,
+    price: 10,
+    brand: 100,
+    oemCode: 50,
+    compatibility: 2000,
+  };
+  
   const [formData, setFormData] = useState<PartListingFormData>({
     title: '',
     description: '',
@@ -44,6 +57,67 @@ export default function PartListingForm({ onSuccess }: PartListingFormProps) {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     setError('');
+  };
+
+  const handleFieldChange = (name: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    let { value } = e.target;
+    
+    // maxLength kontrolü - paste durumunda da çalışır
+    const maxLength = MAX_LENGTHS[name];
+    if (maxLength && value.length > maxLength) {
+      value = value.slice(0, maxLength);
+    }
+    
+    setFormData(prev => ({ ...prev, [name]: value }));
+    setError('');
+  };
+
+  const handlePaste = (name: string, maxLength: number) => (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pastedText = e.clipboardData.getData('text');
+    const truncatedText = pastedText.slice(0, maxLength);
+    
+    // Mevcut değeri al
+    const input = e.target as HTMLInputElement | HTMLTextAreaElement;
+    const currentValue = input.value;
+    const selectionStart = input.selectionStart || 0;
+    const selectionEnd = input.selectionEnd || 0;
+    
+    // Yeni değeri oluştur
+    const newValue = currentValue.slice(0, selectionStart) + truncatedText + currentValue.slice(selectionEnd);
+    
+    // maxLength kontrolü
+    const finalValue = newValue.slice(0, maxLength);
+    
+    setFormData(prev => ({ ...prev, [name]: finalValue }));
+  };
+
+  const handleNumericKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // İzin verilen tuşlar: rakamlar (0-9), backspace, delete, tab, arrow keys, enter, home, end, nokta
+    const allowedKeys = [
+      'Backspace', 'Delete', 'Tab', 'Enter',
+      'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+      'Home', 'End', '.', ','
+    ];
+
+    // Ctrl/Cmd + A, C, V, X izin ver
+    if (e.ctrlKey || e.metaKey) {
+      if (['a', 'c', 'v', 'x'].includes(e.key.toLowerCase())) {
+        return;
+      }
+    }
+
+    // Rakam veya izin verilen tuş değilse engelle
+    if (!allowedKeys.includes(e.key) && !/^[0-9]$/.test(e.key)) {
+      e.preventDefault();
+    }
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      setImages(files);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -66,6 +140,7 @@ export default function PartListingForm({ onSuccess }: PartListingFormProps) {
         brand: validatedData.brand,
         oemCode: validatedData.oemCode,
         compatibility: validatedData.compatibility,
+        images,
       });
 
       const listingId = response.listing.id;
@@ -87,7 +162,7 @@ export default function PartListingForm({ onSuccess }: PartListingFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} noValidate className="space-y-6">
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
           {error}
@@ -107,7 +182,9 @@ export default function PartListingForm({ onSuccess }: PartListingFormProps) {
               id="title"
               name="title"
               value={formData.title}
-              onChange={handleChange}
+              onChange={handleFieldChange('title')}
+              onPaste={handlePaste('title', 200)}
+              maxLength={200}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Örn: Volvo Penta Motor Filtresi"
               required
@@ -123,7 +200,9 @@ export default function PartListingForm({ onSuccess }: PartListingFormProps) {
               id="location"
               name="location"
               value={formData.location}
-              onChange={handleChange}
+              onChange={handleFieldChange('location')}
+              onPaste={handlePaste('location', 200)}
+              maxLength={200}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Örn: İstanbul, Türkiye"
               required
@@ -138,7 +217,9 @@ export default function PartListingForm({ onSuccess }: PartListingFormProps) {
               id="description"
               name="description"
               value={formData.description}
-              onChange={handleChange}
+              onChange={handleFieldChange('description')}
+              onPaste={handlePaste('description', 5000)}
+              maxLength={5000}
               rows={4}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Parça hakkında detaylı bilgi verin..."
@@ -161,7 +242,11 @@ export default function PartListingForm({ onSuccess }: PartListingFormProps) {
               id="price"
               name="price"
               value={formData.price}
-              onChange={handleChange}
+              onChange={handleFieldChange('price')}
+              onKeyDown={handleNumericKeyDown}
+              onPaste={handlePaste('price', 10)}
+              max="9999999999"
+              maxLength={10}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="500"
               required
@@ -200,7 +285,9 @@ export default function PartListingForm({ onSuccess }: PartListingFormProps) {
               id="brand"
               name="brand"
               value={formData.brand}
-              onChange={handleChange}
+              onChange={handleFieldChange('brand')}
+              onPaste={handlePaste('brand', 100)}
+              maxLength={100}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Örn: Volvo Penta"
               required
@@ -216,7 +303,9 @@ export default function PartListingForm({ onSuccess }: PartListingFormProps) {
               id="oemCode"
               name="oemCode"
               value={formData.oemCode}
-              onChange={handleChange}
+              onChange={handleFieldChange('oemCode')}
+              onPaste={handlePaste('oemCode', 50)}
+              maxLength={50}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Örn: VP-12345"
             />
@@ -248,14 +337,40 @@ export default function PartListingForm({ onSuccess }: PartListingFormProps) {
             id="compatibility"
             name="compatibility"
             value={formData.compatibility}
-            onChange={handleChange}
-            rows={3}
+            onChange={handleFieldChange('compatibility')}
+            onPaste={handlePaste('compatibility', 2000)}
+            maxLength={2000}
+            rows={4}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Uyumlu motor modellerini ve yat tiplerini listeleyin..."
+            placeholder="Uyumlu motor modellerini, yat tiplerini ve diğer uyumluluk bilgilerini listeleyin...&#10;&#10;Örnek:&#10;- Volvo Penta D1-20, D1-30, D2-40&#10;- Yanaca tipi: Dizel&#10;- Yat uzunluğu: 30-50 feet"
           />
           <p className="mt-1 text-sm text-gray-500">
-            Örn: Volvo Penta D1-20, D1-30, D2-40 motorları ile uyumlu
+            Her satıra bir uyumluluk bilgisi yazabilirsiniz. Bu bilgiler ilan detay sayfasında gösterilecektir.
           </p>
+        </div>
+      </div>
+
+      {/* Resim Yükleme */}
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Resimler</h3>
+        <div>
+          <label htmlFor="images" className="block text-sm font-medium text-gray-700 mb-1">
+            İlan Resimleri (En fazla 15 adet)
+          </label>
+          <input
+            type="file"
+            id="images"
+            name="images"
+            multiple
+            accept="image/*"
+            onChange={handleImageChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          {images.length > 0 && (
+            <p className="mt-2 text-sm text-gray-600">
+              {images.length} adet resim seçildi
+            </p>
+          )}
         </div>
       </div>
 

@@ -35,7 +35,7 @@ export class YachtListingHandler implements IListingHandler {
     yachtType: z.enum(['motor_yacht', 'sailing_yacht', 'catamaran', 'gulet'], {
       errorMap: () => ({ message: 'Geçersiz yat türü' })
     }),
-    year: z.number().int().min(1970).max(new Date().getFullYear() + 1, 'Geçersiz yıl'),
+    year: z.number().int().min(1970).max(new Date().getFullYear(), 'Geçersiz yıl'),
     length: z.number().positive('Uzunluk pozitif olmalı'),
     beam: z.number().positive('Genişlik pozitif olmalı'),
     draft: z.number().positive('Sükunet pozitif olmalı'),

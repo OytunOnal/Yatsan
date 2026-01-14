@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Listing, ListingType } from '@/lib/api';
+import { Listing, ListingType, getImageUrl } from '@/lib/api';
 
 interface ListingCardProps {
   listing: Listing;
@@ -119,7 +119,7 @@ export default function ListingCard({ listing }: ListingCardProps) {
 
   // İlan görseli (ilk resim veya placeholder)
   const image = listing.images && listing.images.length > 0
-    ? listing.images[0].url
+    ? (getImageUrl(listing.images[0].url) || '/placeholder-listing.jpg')
     : '/placeholder-listing.jpg';
 
   const details = getListingDetails(listing);
@@ -133,7 +133,7 @@ export default function ListingCard({ listing }: ListingCardProps) {
           <img
             src={image}
             alt={listing.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
           />
 
           {/* Type Badge */}

@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
 import ImageGallery from '@/components/listings/ImageGallery';
 import ContactButtons from '@/components/listings/ContactButtons';
-import { Listing, ListingType } from '@/lib/api';
+import { Listing, ListingType, getImageUrl } from '@/lib/api';
 
 interface ListingResponse {
   listing: Listing;
@@ -162,13 +162,16 @@ function PartListingDetails({ part }: { part: any }) {
 
   if (part.oemCode) details.push({ label: 'OEM Kodu', value: part.oemCode });
 
-  // Compatibility JSON string olarak geliyor, parse edip gösterelim
+  // Compatibility JSON string veya metin olarak gelebilir
   let compatibilityInfo: { yachtLength?: { min: number; max: number; unit: string }; yachtDisplacement?: { min: number; max: number; unit: string } } = {};
+  let compatibilityText: string | null = null;
+  
   if (part.compatibility) {
     try {
       compatibilityInfo = JSON.parse(part.compatibility);
     } catch {
-      // JSON parse hatası varsa, compatibilityInfo boş kalır
+      // JSON parse hatası varsa, metin olarak kabul et
+      compatibilityText = part.compatibility;
     }
   }
 
@@ -183,27 +186,34 @@ function PartListingDetails({ part }: { part: any }) {
         ))}
       </div>
 
-      {(compatibilityInfo.yachtLength || compatibilityInfo.yachtDisplacement) && (
+      {(compatibilityInfo.yachtLength || compatibilityInfo.yachtDisplacement || compatibilityText) && (
         <div className="mt-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Uyumluluk</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {compatibilityInfo.yachtLength && (
-              <div className="bg-gray-50 px-3 py-2 rounded-lg">
-                <p className="text-xs text-gray-500 mb-1">Yat Uzunluğu</p>
-                <p className="text-sm font-semibold text-gray-900">
-                  {compatibilityInfo.yachtLength.min} - {compatibilityInfo.yachtLength.max} {compatibilityInfo.yachtLength.unit}
-                </p>
-              </div>
-            )}
-            {compatibilityInfo.yachtDisplacement && (
-              <div className="bg-gray-50 px-3 py-2 rounded-lg">
-                <p className="text-xs text-gray-500 mb-1">Yat Deplasmanı</p>
-                <p className="text-sm font-semibold text-gray-900">
-                  {compatibilityInfo.yachtDisplacement.min} - {compatibilityInfo.yachtDisplacement.max} {compatibilityInfo.yachtDisplacement.unit}
-                </p>
-              </div>
-            )}
-          </div>
+          
+          {compatibilityText ? (
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="text-sm text-gray-700 whitespace-pre-line">{compatibilityText}</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {compatibilityInfo.yachtLength && (
+                <div className="bg-gray-50 px-3 py-2 rounded-lg">
+                  <p className="text-xs text-gray-500 mb-1">Yat Uzunluğu</p>
+                  <p className="text-sm font-semibold text-gray-900">
+                    {compatibilityInfo.yachtLength.min} - {compatibilityInfo.yachtLength.max} {compatibilityInfo.yachtLength.unit}
+                  </p>
+                </div>
+              )}
+              {compatibilityInfo.yachtDisplacement && (
+                <div className="bg-gray-50 px-3 py-2 rounded-lg">
+                  <p className="text-xs text-gray-500 mb-1">Yat Deplasmanı</p>
+                  <p className="text-sm font-semibold text-gray-900">
+                    {compatibilityInfo.yachtDisplacement.min} - {compatibilityInfo.yachtDisplacement.max} {compatibilityInfo.yachtDisplacement.unit}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -374,7 +384,7 @@ export default async function ListingDetailPage({ params }: { params: { id: stri
     notFound();
   }
 
-  const images = listing.images?.map(img => img.url) || [];
+  const images = listing.images?.map(img => getImageUrl(img.url) || '') || [];
 
   return (
     <div className="container py-8">

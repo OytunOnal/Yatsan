@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import cron from 'node-cron';
+import path from 'path';
 import authRoutes from './routes/auth.routes';
 import listingRoutes from './routes/listing.routes';
 import adminRoutes from './routes/admin.routes';
@@ -42,6 +43,9 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 app.use(databaseMiddleware);
 

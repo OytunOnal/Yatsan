@@ -12,6 +12,7 @@
     "node-cron": "^4.2.1",
     "postgres": "^3.4.8",
     "resend": "^6.7.0",
+    "sharp": "^0.34.5",
     "zod": "^3.22.4"
   },
   "devDependencies": {
