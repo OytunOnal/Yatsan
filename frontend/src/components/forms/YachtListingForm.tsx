@@ -1,249 +1,110 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import React from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createYachtListing } from '@/lib/api';
-import { z } from 'zod';
+import { getYachtListingSchema, YachtListingFormData } from '@/lib/validation/schemas/yacht.schema';
+import { COMMON_MAX_LENGTHS } from '@/lib/validation/schemas/common.schema';
+import { useFormState } from '@/hooks/forms/useFormState';
+import { useFormValidation } from '@/hooks/forms/useFormValidation';
+import { useFormHandlers } from '@/hooks/forms/useFormHandlers';
+import { useImageUpload } from '@/hooks/forms/useImageUpload';
+import {
+  FormInput,
+  FormTextArea,
+  FormSelect,
+  FormNumericInput,
+  FormSection,
+  FormErrorDisplay,
+  FormActions,
+  FormImageUpload,
+} from './shared';
 
-// Zod validasyon şeması
-const getYachtListingSchema = (currentYear: number) => z.object({
-  title: z.string().min(1, 'Başlık gereklidir').min(5, 'Başlık en az 5 karakter olmalıdır'),
-  description: z.string().min(1, 'Açıklama gereklidir').min(20, 'Açıklama en az 20 karakter olmalıdır'),
-  price: z.string().min(1, 'Fiyat gereklidir'),
-  currency: z.enum(['TRY', 'USD', 'EUR']),
-  location: z.string().min(1, 'Konum gereklidir').min(2, 'Konum en az 2 karakter olmalıdır'),
-  yachtType: z.enum(['motor_yacht', 'sailing_yacht', 'catamaran', 'gulet']),
-  year: z.string().transform((val, ctx) => {
-    const parsed = parseInt(val);
-    if (isNaN(parsed)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Yıl sayısal bir değer olmalıdır',
-      });
-      return z.NEVER;
-    }
-    if (parsed < 1970) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Yıl 1970 veya daha büyük olmalıdır',
-      });
-      return z.NEVER;
-    }
-    if (parsed > currentYear) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Yıl ${currentYear} veya daha küçük olmalıdır`,
-      });
-      return z.NEVER;
-    }
-    return val;
-  }),
-  length: z.string().min(1, 'Uzunluk gereklidir'),
-  beam: z.string().min(1, 'Genişlik gereklidir'),
-  draft: z.string().min(1, 'Sükunet derinliği gereklidir'),
-  engineBrand: z.string().optional(),
-  engineHours: z.string().optional(),
-  engineHP: z.string().optional(),
-  fuelType: z.enum(['diesel', 'petrol', 'electric', 'hybrid']).optional(),
-  cruisingSpeed: z.string().optional(),
-  maxSpeed: z.string().optional(),
-  cabinCount: z.string().optional(),
-  bedCount: z.string().optional(),
-  bathroomCount: z.string().optional(),
-  equipment: z.string().optional(),
-  condition: z.enum(['new', 'excellent', 'good', 'fair']),
-});
+// Yacht type options
+const YACHT_TYPE_OPTIONS = [
+  { value: 'motor_yacht', label: 'Motor Yat' },
+  { value: 'sailing_yacht', label: 'Yelkenli Yat' },
+  { value: 'catamaran', label: 'Katamaran' },
+  { value: 'gulet', label: 'Gulet' },
+];
 
-type YachtListingFormData = z.infer<ReturnType<typeof getYachtListingSchema>>;
+// Currency options
+const CURRENCY_OPTIONS = [
+  { value: 'TRY', label: 'Türk Lirası (₺)' },
+  { value: 'USD', label: 'Amerikan Doları ($)' },
+  { value: 'EUR', label: 'Euro (€)' },
+];
+
+// Fuel type options
+const FUEL_TYPE_OPTIONS = [
+  { value: 'diesel', label: 'Dizel' },
+  { value: 'petrol', label: 'Benzin' },
+  { value: 'electric', label: 'Elektrik' },
+  { value: 'hybrid', label: 'Hibrit' },
+];
+
+// Condition options
+const CONDITION_OPTIONS = [
+  { value: 'new', label: 'Yeni' },
+  { value: 'excellent', label: 'Mükemmel' },
+  { value: 'good', label: 'İyi' },
+  { value: 'fair', label: 'Orta' },
+];
 
 interface YachtListingFormProps {
   onSuccess?: (listingId: string) => void;
 }
 
+const currentYear = new Date().getFullYear();
+
 export default function YachtListingForm({ onSuccess }: YachtListingFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [images, setImages] = useState<File[]>([]);
-  const currentYear = new Date().getFullYear();
-  const titleRef = React.useRef<HTMLInputElement>(null);
-  const descriptionRef = React.useRef<HTMLTextAreaElement>(null);
-  const yearRef = React.useRef<HTMLInputElement>(null);
-  const lengthRef = React.useRef<HTMLInputElement>(null);
-  const beamRef = React.useRef<HTMLInputElement>(null);
-  const draftRef = React.useRef<HTMLInputElement>(null);
-  const [formData, setFormData] = useState<YachtListingFormData>({
-    title: '',
-    description: '',
-    price: '',
-    currency: 'TRY',
-    location: '',
-    yachtType: 'motor_yacht',
-    year: '',
-    length: '',
-    beam: '',
-    draft: '',
-    engineBrand: '',
-    engineHours: '',
-    engineHP: '',
-    fuelType: 'diesel',
-    cruisingSpeed: '',
-    maxSpeed: '',
-    cabinCount: '',
-    bedCount: '',
-    bathroomCount: '',
-    equipment: '',
-    condition: 'good',
+
+  // Form state management
+  const { formData, setFormData, fieldErrors, setFieldErrors, updateField, clearFieldError, resetForm } = useFormState<YachtListingFormData>({
+    initialData: {
+      title: '',
+      description: '',
+      price: '',
+      currency: 'TRY',
+      location: '',
+      yachtType: 'motor_yacht',
+      year: '',
+      length: '',
+      beam: '',
+      draft: '',
+      engineBrand: '',
+      engineHours: '',
+      engineHP: '',
+      fuelType: 'diesel',
+      cruisingSpeed: '',
+      maxSpeed: '',
+      cabinCount: '',
+      bedCount: '',
+      bathroomCount: '',
+      equipment: '',
+      condition: 'good',
+    },
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    setError('');
-    setFieldErrors(prev => {
-      const newErrors = { ...prev };
-      delete newErrors[name];
-      return newErrors;
-    });
-  };
+  // Validation
+  const schema = getYachtListingSchema(currentYear);
+  const { validate, validateField } = useFormValidation(schema);
 
-  // maxLength kısıtlamaları
-  const MAX_LENGTHS: Record<string, number> = {
-    title: 200,
-    description: 5000,
-    location: 200,
-    price: 10,
-    year: 4,
-    length: 6,
-    beam: 6,
-    draft: 6,
-    engineBrand: 100,
-    engineHP: 5,
-    engineHours: 6,
-    cruisingSpeed: 3,
-    maxSpeed: 3,
-    cabinCount: 2,
-    bedCount: 2,
-    bathroomCount: 2,
-    equipment: 2000,
-  };
+  // Form handlers
+  const { handleChange, handleFieldChange, handleFieldBlur, handlePaste, handleNumericKeyDown } = useFormHandlers<YachtListingFormData>({
+    setFormData,
+    setFieldErrors,
+    setError,
+    maxLengths: COMMON_MAX_LENGTHS,
+  });
 
-  const validateField = (name: string, value: string): string | null => {
-    switch (name) {
-      case 'title':
-        if (!value || value.trim() === '') return 'Başlık gereklidir';
-        if (value.length < 5) return 'Başlık en az 5 karakter olmalıdır';
-        return null;
-      case 'description':
-        if (!value || value.trim() === '') return 'Açıklama gereklidir';
-        if (value.length < 20) return 'Açıklama en az 20 karakter olmalıdır';
-        return null;
-      case 'price':
-        if (!value || value.trim() === '') return 'Fiyat gereklidir';
-        const numPrice = parseFloat(value);
-        if (isNaN(numPrice) || numPrice <= 0) return 'Geçerli bir fiyat giriniz';
-        // Database price field: decimal(12, 2) - max value is 10^10 = 10,000,000,000
-        if (numPrice > 9999999999) return 'Fiyat 9.999.999.999\'dan küçük olmalıdır';
-        return null;
-      case 'location':
-        if (!value || value.trim() === '') return 'Konum gereklidir';
-        if (value.length < 2) return 'Konum en az 2 karakter olmalıdır';
-        return null;
-      case 'year':
-        if (!value || value.trim() === '') return 'Yıl gereklidir';
-        const parsed = parseInt(value);
-        if (isNaN(parsed)) return 'Yıl sayısal bir değer olmalıdır';
-        if (parsed < 1970) return 'Yıl 1970 veya daha büyük olmalıdır';
-        if (parsed > currentYear) return `Yıl ${currentYear} veya daha küçük olmalıdır`;
-        return null;
-      case 'length':
-      case 'beam':
-      case 'draft':
-        if (!value || value.trim() === '') return `${name === 'length' ? 'Uzunluk' : name === 'beam' ? 'Genişlik' : 'Sükunet derinliği'} gereklidir`;
-        const numValue = parseFloat(value);
-        if (isNaN(numValue) || numValue <= 0) return `Geçerli bir ${name === 'length' ? 'uzunluk' : name === 'beam' ? 'genişlik' : 'derinlik'} değeri giriniz`;
-        return null;
-      default:
-        return null;
-    }
-  };
-
-  const handleFieldChange = (name: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    let { value } = e.target;
-    
-    // maxLength kontrolü - paste durumunda da çalışır
-    const maxLength = MAX_LENGTHS[name];
-    if (maxLength && value.length > maxLength) {
-      value = value.slice(0, maxLength);
-    }
-    
-    setFormData(prev => ({ ...prev, [name]: value }));
-    // Değişiklik anında hata gösterme, sadece mevcut hatayı temizle
-    setFieldErrors(prev => {
-      const newErrors = { ...prev };
-      delete newErrors[name];
-      return newErrors;
-    });
-    setError('');
-  };
-
-  const handlePaste = (name: string, maxLength: number) => (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    const pastedText = e.clipboardData.getData('text');
-    const truncatedText = pastedText.slice(0, maxLength);
-    
-    // Mevcut değeri al
-    const input = e.target as HTMLInputElement | HTMLTextAreaElement;
-    const currentValue = input.value;
-    const selectionStart = input.selectionStart || 0;
-    const selectionEnd = input.selectionEnd || 0;
-    
-    // Yeni değeri oluştur
-    const newValue = currentValue.slice(0, selectionStart) + truncatedText + currentValue.slice(selectionEnd);
-    
-    // maxLength kontrolü
-    const finalValue = newValue.slice(0, maxLength);
-    
-    setFormData(prev => ({ ...prev, [name]: finalValue }));
-  };
-
-  const handleFieldBlur = (name: string) => (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { value } = e.target;
-    const fieldError = validateField(name, value);
-    if (fieldError) {
-      setFieldErrors(prev => ({ ...prev, [name]: fieldError }));
-    }
-  };
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const files = Array.from(e.target.files);
-      setImages(files);
-    }
-  };
-
-  const handleNumericKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // İzin verilen tuşlar: rakamlar (0-9), backspace, delete, tab, arrow keys, enter, home, end, nokta
-    const allowedKeys = [
-      'Backspace', 'Delete', 'Tab', 'Enter',
-      'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
-      'Home', 'End', '.', ','
-    ];
-
-    // Ctrl/Cmd + A, C, V, X izin ver
-    if (e.ctrlKey || e.metaKey) {
-      if (['a', 'c', 'v', 'x'].includes(e.key.toLowerCase())) {
-        return;
-      }
-    }
-
-    // Rakam veya izin verilen tuş değilse engelle
-    if (!allowedKeys.includes(e.key) && !/^[0-9]$/.test(e.key)) {
-      e.preventDefault();
-    }
-  };
+  // Image upload
+  const { images, previews, handleImageChange, removeImage } = useImageUpload({
+    maxFiles: 15,
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -251,11 +112,19 @@ export default function YachtListingForm({ onSuccess }: YachtListingFormProps) {
     setLoading(true);
 
     try {
-      // Validasyon
-      const yachtListingSchema = getYachtListingSchema(currentYear);
-      const validatedData = yachtListingSchema.parse(formData);
+      // Validate form data
+      const validationResult = validate(formData);
+      
+      if (!validationResult.success) {
+        setFieldErrors(validationResult.errors);
+        setError(Object.values(validationResult.errors)[0] || 'Lütfen form hatalarını düzeltin');
+        setLoading(false);
+        return;
+      }
 
-      // API çağrısı
+      const validatedData = validationResult.data!;
+
+      // API call
       const response = await createYachtListing({
         title: validatedData.title,
         description: validatedData.description,
@@ -290,55 +159,8 @@ export default function YachtListingForm({ onSuccess }: YachtListingFormProps) {
       }
     } catch (err: any) {
       console.log('YachtListingForm hatası:', err);
-      
-      if (err instanceof z.ZodError) {
-        // Tüm hataları fieldErrors'a ekle
-        const errors: Record<string, string> = {};
-        err.errors.forEach((e) => {
-          if (e.path.length > 0) {
-            errors[e.path[0] as string] = e.message;
-          }
-        });
-        setFieldErrors(errors);
-        
-        // İlk hatayı genel error'a da ekle
-        const firstError = err.errors[0];
-        setError(firstError.message);
-        
-        // İlk hatalı alana odaklan (bir sonraki render'da ref'ler hazır olacak)
-        setTimeout(() => {
-          const firstErrorField = firstError.path[0] as string;
-          if (firstErrorField === 'title' && titleRef.current) {
-            titleRef.current.focus();
-          } else if (firstErrorField === 'description' && descriptionRef.current) {
-            descriptionRef.current.focus();
-          } else if (firstErrorField === 'year' && yearRef.current) {
-            yearRef.current.focus();
-          } else if (firstErrorField === 'length' && lengthRef.current) {
-            lengthRef.current.focus();
-          } else if (firstErrorField === 'beam' && beamRef.current) {
-            beamRef.current.focus();
-          } else if (firstErrorField === 'draft' && draftRef.current) {
-            draftRef.current.focus();
-          } else if (firstErrorField === 'location') {
-            // Location ref'i yok, scroll ile odaklan
-            document.getElementById('location')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            document.getElementById('location')?.focus();
-          }
-        }, 0);
-      } else {
-        // API hatası - detaylı mesaj göster
-        const errorMessage = err?.response?.data?.message || err?.message || 'İlan oluşturulurken bir hata oluştu';
-        const errors = err?.response?.data?.errors;
-        
-        if (errors && Array.isArray(errors)) {
-          // Backend validasyon hataları
-          setError(errorMessage);
-          console.log('Backend validasyon hataları:', errors);
-        } else {
-          setError(errorMessage);
-        }
-      }
+      const errorMessage = err?.response?.data?.message || err?.message || 'İlan oluşturulurken bir hata oluştu';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -346,579 +168,301 @@ export default function YachtListingForm({ onSuccess }: YachtListingFormProps) {
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-6">
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          {error}
-        </div>
-      )}
-      
-      {/* Tüm alan hatalarını liste olarak göster */}
-      {Object.keys(fieldErrors).length > 0 && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          <p className="font-semibold mb-2">Lütfen şu hataları düzeltin:</p>
-          <ul className="list-disc list-inside space-y-1">
-            {Object.entries(fieldErrors).map(([field, message]) => (
-              message && (
-                <li key={field} className="text-sm">
-                  {field === 'title' && 'Başlık: '}
-                  {field === 'description' && 'Açıklama: '}
-                  {field === 'price' && 'Fiyat: '}
-                  {field === 'location' && 'Konum: '}
-                  {field === 'year' && 'Yıl: '}
-                  {field === 'length' && 'Uzunluk: '}
-                  {field === 'beam' && 'Genişlik: '}
-                  {field === 'draft' && 'Sükunet Derinliği: '}
-                  {message}
-                </li>
-              )
-            )).filter(Boolean)}
-          </ul>
-        </div>
-      )}
+      <FormErrorDisplay error={error} fieldErrors={fieldErrors} />
 
       {/* Temel Bilgiler */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Temel Bilgiler</h3>
+      <FormSection title="Temel Bilgiler">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-              Başlık *
-            </label>
-            <input
-              ref={titleRef}
-              type="text"
-              id="title"
-              name="title"
-              value={formData.title}
-              onChange={handleFieldChange('title')}
-              onBlur={handleFieldBlur('title')}
-              onPaste={handlePaste('title', 200)}
-              maxLength={200}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
-                fieldErrors.title
-                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-              }`}
-              placeholder="Örn: Lüks Motor Yat"
-              required
-            />
-            {fieldErrors.title && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.title}</p>
-            )}
-          </div>
+          <FormInput
+            name="title"
+            label="Başlık"
+            value={formData.title}
+            onChange={handleFieldChange('title')}
+            onBlur={handleFieldBlur('title')}
+            onPaste={handlePaste('title', COMMON_MAX_LENGTHS.title)}
+            maxLength={COMMON_MAX_LENGTHS.title}
+            error={fieldErrors.title}
+            placeholder="Örn: Lüks Motor Yat"
+            required
+          />
 
-          <div>
-            <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
-              Konum *
-            </label>
-            <input
-              type="text"
-              id="location"
-              name="location"
-              value={formData.location}
-              onChange={handleFieldChange('location')}
-              onBlur={handleFieldBlur('location')}
-              onPaste={handlePaste('location', 200)}
-              maxLength={200}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
-                fieldErrors.location
-                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-              }`}
-              placeholder="Örn: İstanbul, Türkiye"
-              required
-            />
-            {fieldErrors.location && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.location}</p>
-            )}
-          </div>
+          <FormInput
+            name="location"
+            label="Konum"
+            value={formData.location}
+            onChange={handleFieldChange('location')}
+            onBlur={handleFieldBlur('location')}
+            onPaste={handlePaste('location', COMMON_MAX_LENGTHS.location)}
+            maxLength={COMMON_MAX_LENGTHS.location}
+            error={fieldErrors.location}
+            placeholder="Örn: İstanbul, Türkiye"
+            required
+          />
 
           <div className="md:col-span-2">
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-              Açıklama *
-            </label>
-            <textarea
-              ref={descriptionRef}
-              id="description"
+            <FormTextArea
               name="description"
+              label="Açıklama"
               value={formData.description}
               onChange={handleFieldChange('description')}
               onBlur={handleFieldBlur('description')}
-              onPaste={handlePaste('description', 5000)}
-              maxLength={5000}
-              rows={4}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
-                fieldErrors.description
-                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-              }`}
+              onPaste={handlePaste('description', COMMON_MAX_LENGTHS.description)}
+              maxLength={COMMON_MAX_LENGTHS.description}
+              error={fieldErrors.description}
               placeholder="Yatınız hakkında detaylı bilgi verin..."
+              rows={4}
               required
             />
-            {fieldErrors.description && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.description}</p>
-            )}
           </div>
         </div>
-      </div>
+      </FormSection>
 
       {/* Fiyat Bilgileri */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Fiyat Bilgileri</h3>
+      <FormSection title="Fiyat Bilgileri">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-1">
-              Fiyat *
-            </label>
-            <input
-              type="number"
-              id="price"
-              name="price"
-              value={formData.price}
-              onChange={handleFieldChange('price')}
-              onBlur={handleFieldBlur('price')}
-              onKeyDown={handleNumericKeyDown}
-              onPaste={handlePaste('price', 10)}
-              max="9999999999"
-              maxLength={10}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
-                fieldErrors.price
-                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-              }`}
-              placeholder="1000000"
-              required
-            />
-            {fieldErrors.price && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.price}</p>
-            )}
-          </div>
+          <FormNumericInput
+            name="price"
+            label="Fiyat"
+            value={formData.price}
+            onChange={handleFieldChange('price')}
+            onBlur={handleFieldBlur('price')}
+            onKeyDown={handleNumericKeyDown}
+            onPaste={handlePaste('price', COMMON_MAX_LENGTHS.price)}
+            maxLength={COMMON_MAX_LENGTHS.price}
+            error={fieldErrors.price}
+            placeholder="1000000"
+            required
+          />
 
-          <div>
-            <label htmlFor="currency" className="block text-sm font-medium text-gray-700 mb-1">
-              Para Birimi *
-            </label>
-            <select
-              id="currency"
-              name="currency"
-              value={formData.currency}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="TRY">Türk Lirası (₺)</option>
-              <option value="USD">Amerikan Doları ($)</option>
-              <option value="EUR">Euro (€)</option>
-            </select>
-          </div>
+          <FormSelect
+            name="currency"
+            label="Para Birimi"
+            value={formData.currency}
+            onChange={handleChange}
+            options={CURRENCY_OPTIONS}
+          />
         </div>
-      </div>
+      </FormSection>
 
       {/* Yat Bilgileri */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Yat Bilgileri</h3>
+      <FormSection title="Yat Bilgileri">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="yachtType" className="block text-sm font-medium text-gray-700 mb-1">
-              Yat Tipi *
-            </label>
-            <select
-              id="yachtType"
-              name="yachtType"
-              value={formData.yachtType}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="motor_yacht">Motor Yat</option>
-              <option value="sailing_yacht">Yelkenli Yat</option>
-              <option value="catamaran">Katamaran</option>
-              <option value="gulet">Gulet</option>
-            </select>
-          </div>
+          <FormSelect
+            name="yachtType"
+            label="Yat Tipi"
+            value={formData.yachtType}
+            onChange={handleChange}
+            options={YACHT_TYPE_OPTIONS}
+          />
 
-          <div>
-            <label htmlFor="year" className="block text-sm font-medium text-gray-700 mb-1">
-              Yıl *
-            </label>
-            <input
-              ref={yearRef}
-              type="number"
-              id="year"
-              name="year"
-              value={formData.year}
-              onChange={handleFieldChange('year')}
-              onBlur={handleFieldBlur('year')}
-              onKeyDown={handleNumericKeyDown}
-              onPaste={handlePaste('year', 4)}
-              min="1970"
-              max={currentYear}
-              maxLength={4}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
-                fieldErrors.year
-                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-              }`}
-              placeholder={currentYear.toString()}
-              required
-            />
-            {fieldErrors.year && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.year}</p>
-            )}
-          </div>
+          <FormNumericInput
+            name="year"
+            label="Yıl"
+            value={formData.year}
+            onChange={handleFieldChange('year')}
+            onBlur={handleFieldBlur('year')}
+            onKeyDown={handleNumericKeyDown}
+            onPaste={handlePaste('year', COMMON_MAX_LENGTHS.year)}
+            maxLength={COMMON_MAX_LENGTHS.year}
+            error={fieldErrors.year}
+            placeholder={currentYear.toString()}
+            min={1970}
+            max={currentYear}
+            required
+          />
 
-          <div>
-            <label htmlFor="length" className="block text-sm font-medium text-gray-700 mb-1">
-              Uzunluk (metre) *
-            </label>
-            <input
-              ref={lengthRef}
-              type="number"
-              step="0.01"
-              id="length"
-              name="length"
-              value={formData.length}
-              onChange={handleFieldChange('length')}
-              onBlur={handleFieldBlur('length')}
-              onKeyDown={handleNumericKeyDown}
-              onPaste={handlePaste('length', 6)}
-              maxLength={6}
-              max="9999.99"
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
-                fieldErrors.length
-                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-              }`}
-              placeholder="20.5"
-              required
-            />
-            {fieldErrors.length && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.length}</p>
-            )}
-          </div>
+          <FormNumericInput
+            name="length"
+            label="Uzunluk (metre)"
+            value={formData.length}
+            onChange={handleFieldChange('length')}
+            onBlur={handleFieldBlur('length')}
+            onKeyDown={handleNumericKeyDown}
+            onPaste={handlePaste('length', COMMON_MAX_LENGTHS.length)}
+            maxLength={COMMON_MAX_LENGTHS.length}
+            error={fieldErrors.length}
+            placeholder="20.5"
+            step="0.01"
+            required
+          />
 
-          <div>
-            <label htmlFor="beam" className="block text-sm font-medium text-gray-700 mb-1">
-              Genişlik (metre) *
-            </label>
-            <input
-              ref={beamRef}
-              type="number"
-              step="0.01"
-              id="beam"
-              name="beam"
-              value={formData.beam}
-              onChange={handleFieldChange('beam')}
-              onBlur={handleFieldBlur('beam')}
-              onKeyDown={handleNumericKeyDown}
-              onPaste={handlePaste('beam', 6)}
-              maxLength={6}
-              max="9999.99"
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
-                fieldErrors.beam
-                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-              }`}
-              placeholder="5.5"
-              required
-            />
-            {fieldErrors.beam && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.beam}</p>
-            )}
-          </div>
+          <FormNumericInput
+            name="beam"
+            label="Genişlik (metre)"
+            value={formData.beam}
+            onChange={handleFieldChange('beam')}
+            onBlur={handleFieldBlur('beam')}
+            onKeyDown={handleNumericKeyDown}
+            onPaste={handlePaste('beam', COMMON_MAX_LENGTHS.beam)}
+            maxLength={COMMON_MAX_LENGTHS.beam}
+            error={fieldErrors.beam}
+            placeholder="5.5"
+            step="0.01"
+            required
+          />
 
-          <div>
-            <label htmlFor="draft" className="block text-sm font-medium text-gray-700 mb-1">
-              Sükunet Derinliği (metre) *
-            </label>
-            <input
-              ref={draftRef}
-              type="number"
-              step="0.01"
-              id="draft"
-              name="draft"
-              value={formData.draft}
-              onChange={handleFieldChange('draft')}
-              onBlur={handleFieldBlur('draft')}
-              onKeyDown={handleNumericKeyDown}
-              onPaste={handlePaste('draft', 6)}
-              maxLength={6}
-              max="9999.99"
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
-                fieldErrors.draft
-                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-              }`}
-              placeholder="2.5"
-              required
-            />
-            {fieldErrors.draft && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.draft}</p>
-            )}
-          </div>
+          <FormNumericInput
+            name="draft"
+            label="Sükunet Derinliği (metre)"
+            value={formData.draft}
+            onChange={handleFieldChange('draft')}
+            onBlur={handleFieldBlur('draft')}
+            onKeyDown={handleNumericKeyDown}
+            onPaste={handlePaste('draft', COMMON_MAX_LENGTHS.draft)}
+            maxLength={COMMON_MAX_LENGTHS.draft}
+            error={fieldErrors.draft}
+            placeholder="2.5"
+            step="0.01"
+            required
+          />
 
-          <div>
-            <label htmlFor="condition" className="block text-sm font-medium text-gray-700 mb-1">
-              Durum *
-            </label>
-            <select
-              id="condition"
-              name="condition"
-              value={formData.condition}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="new">Yeni</option>
-              <option value="excellent">Mükemmel</option>
-              <option value="good">İyi</option>
-              <option value="fair">Orta</option>
-            </select>
-          </div>
+          <FormSelect
+            name="condition"
+            label="Durum"
+            value={formData.condition}
+            onChange={handleChange}
+            options={CONDITION_OPTIONS}
+          />
         </div>
-      </div>
+      </FormSection>
 
       {/* Motor Bilgileri */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Motor Bilgileri</h3>
+      <FormSection title="Motor Bilgileri">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="engineBrand" className="block text-sm font-medium text-gray-700 mb-1">
-              Motor Markası
-            </label>
-            <input
-              type="text"
-              id="engineBrand"
-              name="engineBrand"
-              value={formData.engineBrand}
-              onChange={handleFieldChange('engineBrand')}
-              onPaste={handlePaste('engineBrand', 100)}
-              maxLength={100}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Örn: Volvo Penta"
-            />
-          </div>
+          <FormInput
+            name="engineBrand"
+            label="Motor Markası"
+            value={formData.engineBrand}
+            onChange={handleFieldChange('engineBrand')}
+            onPaste={handlePaste('engineBrand', COMMON_MAX_LENGTHS.engineBrand)}
+            maxLength={COMMON_MAX_LENGTHS.engineBrand}
+            placeholder="Örn: Volvo Penta"
+          />
 
-          <div>
-            <label htmlFor="engineHP" className="block text-sm font-medium text-gray-700 mb-1">
-              Motor Gücü (HP)
-            </label>
-            <input
-              type="number"
-              id="engineHP"
-              name="engineHP"
-              value={formData.engineHP}
-              onChange={handleFieldChange('engineHP')}
-              onKeyDown={handleNumericKeyDown}
-              onPaste={handlePaste('engineHP', 5)}
-              maxLength={5}
-              max="99999"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="1000"
-            />
-          </div>
+          <FormNumericInput
+            name="engineHP"
+            label="Motor Gücü (HP)"
+            value={formData.engineHP}
+            onChange={handleFieldChange('engineHP')}
+            onKeyDown={handleNumericKeyDown}
+            onPaste={handlePaste('engineHP', COMMON_MAX_LENGTHS.engineHP)}
+            maxLength={COMMON_MAX_LENGTHS.engineHP}
+            placeholder="1000"
+          />
 
-          <div>
-            <label htmlFor="engineHours" className="block text-sm font-medium text-gray-700 mb-1">
-              Motor Saati
-            </label>
-            <input
-              type="number"
-              id="engineHours"
-              name="engineHours"
-              value={formData.engineHours}
-              onChange={handleFieldChange('engineHours')}
-              onKeyDown={handleNumericKeyDown}
-              onPaste={handlePaste('engineHours', 6)}
-              maxLength={6}
-              max="999999"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="500"
-            />
-          </div>
+          <FormNumericInput
+            name="engineHours"
+            label="Motor Saati"
+            value={formData.engineHours}
+            onChange={handleFieldChange('engineHours')}
+            onKeyDown={handleNumericKeyDown}
+            onPaste={handlePaste('engineHours', COMMON_MAX_LENGTHS.engineHours)}
+            maxLength={COMMON_MAX_LENGTHS.engineHours}
+            placeholder="500"
+          />
 
-          <div>
-            <label htmlFor="fuelType" className="block text-sm font-medium text-gray-700 mb-1">
-              Yakıt Tipi
-            </label>
-            <select
-              id="fuelType"
-              name="fuelType"
-              value={formData.fuelType}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="diesel">Dizel</option>
-              <option value="petrol">Benzin</option>
-              <option value="electric">Elektrik</option>
-              <option value="hybrid">Hibrit</option>
-            </select>
-          </div>
+          <FormSelect
+            name="fuelType"
+            label="Yakıt Tipi"
+            value={formData.fuelType}
+            onChange={handleChange}
+            options={FUEL_TYPE_OPTIONS}
+          />
 
-          <div>
-            <label htmlFor="cruisingSpeed" className="block text-sm font-medium text-gray-700 mb-1">
-              Seyir Hızı (knot)
-            </label>
-            <input
-              type="number"
-              id="cruisingSpeed"
-              name="cruisingSpeed"
-              value={formData.cruisingSpeed}
-              onChange={handleFieldChange('cruisingSpeed')}
-              onKeyDown={handleNumericKeyDown}
-              onPaste={handlePaste('cruisingSpeed', 3)}
-              maxLength={3}
-              max="999"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="20"
-            />
-          </div>
+          <FormNumericInput
+            name="cruisingSpeed"
+            label="Seyir Hızı (knot)"
+            value={formData.cruisingSpeed}
+            onChange={handleFieldChange('cruisingSpeed')}
+            onKeyDown={handleNumericKeyDown}
+            onPaste={handlePaste('cruisingSpeed', COMMON_MAX_LENGTHS.cruisingSpeed)}
+            maxLength={COMMON_MAX_LENGTHS.cruisingSpeed}
+            placeholder="20"
+          />
 
-          <div>
-            <label htmlFor="maxSpeed" className="block text-sm font-medium text-gray-700 mb-1">
-              Maksimum Hız (knot)
-            </label>
-            <input
-              type="number"
-              id="maxSpeed"
-              name="maxSpeed"
-              value={formData.maxSpeed}
-              onChange={handleFieldChange('maxSpeed')}
-              onKeyDown={handleNumericKeyDown}
-              onPaste={handlePaste('maxSpeed', 3)}
-              maxLength={3}
-              max="999"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="30"
-            />
-          </div>
+          <FormNumericInput
+            name="maxSpeed"
+            label="Maksimum Hız (knot)"
+            value={formData.maxSpeed}
+            onChange={handleFieldChange('maxSpeed')}
+            onKeyDown={handleNumericKeyDown}
+            onPaste={handlePaste('maxSpeed', COMMON_MAX_LENGTHS.maxSpeed)}
+            maxLength={COMMON_MAX_LENGTHS.maxSpeed}
+            placeholder="30"
+          />
         </div>
-      </div>
+      </FormSection>
 
       {/* Konaklama Bilgileri */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Konaklama Bilgileri</h3>
+      <FormSection title="Konaklama Bilgileri">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label htmlFor="cabinCount" className="block text-sm font-medium text-gray-700 mb-1">
-              Kabin Sayısı
-            </label>
-            <input
-              type="number"
-              id="cabinCount"
-              name="cabinCount"
-              value={formData.cabinCount}
-              onChange={handleFieldChange('cabinCount')}
-              onKeyDown={handleNumericKeyDown}
-              onPaste={handlePaste('cabinCount', 2)}
-              maxLength={2}
-              max="99"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="4"
-            />
-          </div>
+          <FormNumericInput
+            name="cabinCount"
+            label="Kabin Sayısı"
+            value={formData.cabinCount}
+            onChange={handleFieldChange('cabinCount')}
+            onKeyDown={handleNumericKeyDown}
+            onPaste={handlePaste('cabinCount', COMMON_MAX_LENGTHS.cabinCount)}
+            maxLength={COMMON_MAX_LENGTHS.cabinCount}
+            placeholder="4"
+          />
 
-          <div>
-            <label htmlFor="bedCount" className="block text-sm font-medium text-gray-700 mb-1">
-              Yatak Sayısı
-            </label>
-            <input
-              type="number"
-              id="bedCount"
-              name="bedCount"
-              value={formData.bedCount}
-              onChange={handleFieldChange('bedCount')}
-              onKeyDown={handleNumericKeyDown}
-              onPaste={handlePaste('bedCount', 2)}
-              maxLength={2}
-              max="99"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="8"
-            />
-          </div>
+          <FormNumericInput
+            name="bedCount"
+            label="Yatak Sayısı"
+            value={formData.bedCount}
+            onChange={handleFieldChange('bedCount')}
+            onKeyDown={handleNumericKeyDown}
+            onPaste={handlePaste('bedCount', COMMON_MAX_LENGTHS.bedCount)}
+            maxLength={COMMON_MAX_LENGTHS.bedCount}
+            placeholder="8"
+          />
 
-          <div>
-            <label htmlFor="bathroomCount" className="block text-sm font-medium text-gray-700 mb-1">
-              Banyo Sayısı
-            </label>
-            <input
-              type="number"
-              id="bathroomCount"
-              name="bathroomCount"
-              value={formData.bathroomCount}
-              onChange={handleFieldChange('bathroomCount')}
-              onKeyDown={handleNumericKeyDown}
-              onPaste={handlePaste('bathroomCount', 2)}
-              maxLength={2}
-              max="99"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="4"
-            />
-          </div>
+          <FormNumericInput
+            name="bathroomCount"
+            label="Banyo Sayısı"
+            value={formData.bathroomCount}
+            onChange={handleFieldChange('bathroomCount')}
+            onKeyDown={handleNumericKeyDown}
+            onPaste={handlePaste('bathroomCount', COMMON_MAX_LENGTHS.bathroomCount)}
+            maxLength={COMMON_MAX_LENGTHS.bathroomCount}
+            placeholder="4"
+          />
         </div>
-      </div>
+      </FormSection>
 
       {/* Ekipman */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Ekipman ve Donanım</h3>
-        <div>
-          <label htmlFor="equipment" className="block text-sm font-medium text-gray-700 mb-1">
-            Ekipman Listesi
-          </label>
-          <textarea
-            id="equipment"
-            name="equipment"
-            value={formData.equipment}
-            onChange={handleFieldChange('equipment')}
-            onPaste={handlePaste('equipment', 2000)}
-            maxLength={2000}
-            rows={4}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="GPS, Radar, Otomatik Pilot, Jeneratör, Su yapıcı, vb."
-          />
-        </div>
-      </div>
+      <FormSection title="Ekipman ve Donanım">
+        <FormTextArea
+          name="equipment"
+          label="Ekipman Listesi"
+          value={formData.equipment}
+          onChange={handleFieldChange('equipment')}
+          onPaste={handlePaste('equipment', COMMON_MAX_LENGTHS.equipment)}
+          maxLength={COMMON_MAX_LENGTHS.equipment}
+          placeholder="GPS, Radar, Otomatik Pilot, Jeneratör, Su yapıcı, vb."
+          rows={4}
+        />
+      </FormSection>
 
       {/* Resim Yükleme */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Resimler</h3>
-        <div>
-          <label htmlFor="images" className="block text-sm font-medium text-gray-700 mb-1">
-            İlan Resimleri (En fazla 15 adet)
-          </label>
-          <input
-            type="file"
-            id="images"
-            name="images"
-            multiple
-            accept="image/*"
-            onChange={handleImageChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-          {images.length > 0 && (
-            <p className="mt-2 text-sm text-gray-600">
-              {images.length} adet resim seçildi
-            </p>
-          )}
-        </div>
-      </div>
+      <FormSection title="Resimler">
+        <FormImageUpload
+          images={images}
+          previews={previews}
+          onImageChange={handleImageChange}
+          onRemoveImage={removeImage}
+          maxFiles={15}
+          label="İlan Resimleri"
+        />
+      </FormSection>
 
       {/* Submit Button */}
-      <div className="flex justify-end gap-3">
-        {!onSuccess && (
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            İptal
-          </button>
-        )}
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading ? 'Kaydediliyor...' : 'İlanı Oluştur'}
-        </button>
-      </div>
+      <FormActions
+        loading={loading}
+        submitLabel="İlanı Oluştur"
+        onCancel={!onSuccess ? () => router.back() : undefined}
+      />
     </form>
   );
 }

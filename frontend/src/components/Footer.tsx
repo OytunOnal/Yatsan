@@ -44,10 +44,10 @@ export default function Footer() {
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
                 </svg>
               </div>
-              <span className="text-xl font-bold text-white">Yatsan</span>
+              <span className="text-xl font-bold text-white">TeknePazarı</span>
             </Link>
             <p className="text-sm text-gray-400 mb-4">
-              Türkiye'nin denizcilik pazar yeri. Yat, yedek parça, marina ve mürettebat ilanları.
+              Türkiye'nin en kapsamlı denizcilik platformu. 10 ana kategori, 1000+ alt kategori ile tekneler, yatlar, yedek parça, marina, mürettebat, sigorta, ekspertiz ve daha fazlası.
             </p>
             <div className="flex items-center gap-3">
               <a href="#" className="w-9 h-9 rounded-lg bg-gray-800 flex items-center justify-center hover:bg-primary-600 transition-colors" aria-label="Facebook">
@@ -137,7 +137,7 @@ export default function Footer() {
         <div className="container py-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-gray-400">
-              &copy; {currentYear} Yatsan. Tüm hakları saklıdır.
+              &copy; {currentYear} TeknePazarı. Tüm hakları saklıdır.
             </p>
             <div className="flex items-center gap-4 text-sm">
               <span className="text-gray-400">Made with ❤️ in Türkiye</span>

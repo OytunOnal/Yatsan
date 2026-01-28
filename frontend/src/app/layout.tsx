@@ -13,20 +13,23 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Yatsan - Türkiye\'nin Denizcilik Pazar Yeri',
-  description: 'Sıfır ve ikinci el yatlar, yedek parçalar, marina ve mürettebat ilanları. Türkiye\'nin en kapsamlı denizcilik pazar yeri.',
-  keywords: ['yat', 'yat ilanı', 'yat satış', 'yat kiralama', 'yedek parça', 'marina', 'denizcilik', 'gemi', 'tekn'],
-  authors: [{ name: 'Yatsan' }],
+  title: 'TeknePazarı - Türkiye\'nin En Kapsamlı Denizcilik Platformu',
+  description: '10 ana kategori, 1000+ alt kategori ile tekneler, yatlar, yedek parça, marina, mürettebat, sigorta, ekspertiz, teknik servisler ve daha fazlası. Türkiye\'nin en kapsamlı denizcilik platformu.',
+  keywords: ['tekne', 'tekne pazarı', 'yat', 'yat ilanı', 'yat satış', 'yat kiralama', 'yedek parça', 'marina', 'denizcilik', 'gemi', 'sigorta', 'ekspertiz', 'teknik servis', 'mürettebat', 'kaptan'],
+  authors: [{ name: 'TeknePazarı' }],
+  icons: {
+    icon: '/favicon.ico',
+  },
   openGraph: {
-    title: 'Yatsan - Türkiye\'nin Denizcilik Pazar Yeri',
-    description: 'Sıfır ve ikinci el yatlar, yedek parçalar, marina ve mürettebat ilanları.',
+    title: 'TeknePazarı - Türkiye\'nin En Kapsamlı Denizcilik Platformu',
+    description: '10 ana kategori, 1000+ alt kategori. Tekneler, yatlar, yedek parça, marina, mürettebat, sigorta, ekspertiz ve daha fazlası.',
     type: 'website',
     locale: 'tr_TR',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Yatsan - Türkiye\'nin Denizcilik Pazar Yeri',
-    description: 'Sıfır ve ikinci el yatlar, yedek parçalar, marina ve mürettebat ilanları.',
+    title: 'TeknePazarı - Türkiye\'nin En Kapsamlı Denizcilik Platformu',
+    description: '10 ana kategori, 1000+ alt kategori. Tekneler, yatlar, yedek parça, marina, mürettebat, sigorta, ekspertiz ve daha fazlası.',
   },
   robots: {
     index: true,

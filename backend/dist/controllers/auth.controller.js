@@ -165,8 +165,7 @@ const forgotPassword = async (req, res) => {
         const foundUsers = await req.db.select().from(schema_1.users).where((0, drizzle_orm_1.eq)(schema_1.users.email, email));
         const user = foundUsers[0];
         if (!user) {
-            // For security, always return success
-            return res.json({ success: true, message: 'If an account with that email exists, a reset link has been sent.' });
+            return res.status(404).json({ success: false, message: 'Bu email adresi ile kayıtlı bir hesap bulunamadı' });
         }
         // Generate token
         const resetToken = crypto_1.default.randomBytes(32).toString('hex');
@@ -181,7 +180,7 @@ const forgotPassword = async (req, res) => {
         // Send email
         const resetLink = `http://localhost:3000/reset-password?token=${resetToken}`;
         await email_service_1.EmailService.sendPasswordResetEmail(email, resetLink);
-        res.json({ success: true, message: 'If an account with that email exists, a reset link has been sent.' });
+        res.json({ success: true, message: 'Şifre sıfırlama linki email adresinize gönderildi' });
     }
     catch (error) {
         if (error instanceof zod_1.z.ZodError) {

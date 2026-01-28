@@ -2,12 +2,18 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import ListingCard from '@/components/listings/ListingCard';
 import Filters, { FiltersProps } from '@/components/listings/Filters';
+import CategoryTree from '@/components/listings/CategoryTree';
 import { Listing, ListingType } from '@/lib/api';
 import { DynamicFilters, DynamicFilterValue } from '@/types';
 
 export default function ListingsPage() {
+  const searchParams = useSearchParams();
+  const selectedCategory = searchParams.get('category') || undefined;
+  const selectedSubcategory = searchParams.get('subcategory') || undefined;
+  
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +92,14 @@ export default function ListingsPage() {
       <div className="container py-6">
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Filters Sidebar */}
-          <aside className="lg:w-72 flex-shrink-0">
+          <aside className="lg:w-72 flex-shrink-0 space-y-4">
+            {/* Category Tree */}
+            <CategoryTree
+              selectedCategory={selectedCategory}
+              selectedSubcategory={selectedSubcategory}
+            />
+            
+            {/* Filters */}
             <div className="card p-5 sticky top-24">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900">Filtreler</h2>

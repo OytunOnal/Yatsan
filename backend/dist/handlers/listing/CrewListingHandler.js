@@ -201,34 +201,48 @@ class CrewListingHandler {
     // ============================================
     /**
      * Get type-specific filter conditions for database queries
+     *
+     * Uses EXISTS subqueries to avoid JOIN issues in the main query.
+     * The main query only joins listings and users tables.
      */
     getTypeSpecificFilters(filters) {
         const conditions = [];
+        // Build subquery conditions
+        const subqueryConditions = [];
         // Position filter
         if (filters.position) {
-            conditions.push((0, drizzle_orm_1.eq)(schema_1.crewListings.position, filters.position));
+            subqueryConditions.push((0, drizzle_orm_1.eq)(schema_1.crewListings.position, filters.position));
         }
         // Experience range filters
         if (filters.minExperience) {
-            conditions.push((0, drizzle_orm_1.sql) `${schema_1.crewListings.experience} >= ${parseInt(filters.minExperience)}`);
+            subqueryConditions.push((0, drizzle_orm_1.sql) `${schema_1.crewListings.experience} >= ${parseInt(filters.minExperience)}`);
         }
         if (filters.maxExperience) {
-            conditions.push((0, drizzle_orm_1.sql) `${schema_1.crewListings.experience} <= ${parseInt(filters.maxExperience)}`);
+            subqueryConditions.push((0, drizzle_orm_1.sql) `${schema_1.crewListings.experience} <= ${parseInt(filters.maxExperience)}`);
         }
         // Availability filter
         if (filters.availability) {
-            conditions.push((0, drizzle_orm_1.eq)(schema_1.crewListings.availability, filters.availability));
+            subqueryConditions.push((0, drizzle_orm_1.eq)(schema_1.crewListings.availability, filters.availability));
         }
         // Certifications JSON filter (simple contains check)
         if (filters.certifications) {
-            conditions.push((0, drizzle_orm_1.sql) `${schema_1.crewListings.certifications}::text ILIKE ${`%${filters.certifications}%`}`);
+            subqueryConditions.push((0, drizzle_orm_1.sql) `${schema_1.crewListings.certifications}::text ILIKE ${`%${filters.certifications}%`}`);
         }
         // Salary range filters (stored as decimal string)
         if (filters.minSalary) {
-            conditions.push((0, drizzle_orm_1.sql) `CAST(${schema_1.crewListings.salary} AS NUMERIC) >= ${parseFloat(filters.minSalary)}`);
+            subqueryConditions.push((0, drizzle_orm_1.sql) `CAST(${schema_1.crewListings.salary} AS NUMERIC) >= ${parseFloat(filters.minSalary)}`);
         }
         if (filters.maxSalary) {
-            conditions.push((0, drizzle_orm_1.sql) `CAST(${schema_1.crewListings.salary} AS NUMERIC) <= ${parseFloat(filters.maxSalary)}`);
+            subqueryConditions.push((0, drizzle_orm_1.sql) `CAST(${schema_1.crewListings.salary} AS NUMERIC) <= ${parseFloat(filters.maxSalary)}`);
+        }
+        // If there are any type-specific filters, wrap them in an EXISTS subquery
+        if (subqueryConditions.length > 0) {
+            const whereClause = subqueryConditions.length > 0 ? (0, drizzle_orm_1.and)(...subqueryConditions) : undefined;
+            conditions.push((0, drizzle_orm_1.sql) `EXISTS (
+          SELECT 1 FROM ${schema_1.crewListings}
+          WHERE ${schema_1.crewListings.listing_id} = ${schema_1.listings.id}
+          ${whereClause ? (0, drizzle_orm_1.sql) `AND ${whereClause}` : (0, drizzle_orm_1.sql) ``}
+        )`);
         }
         return conditions;
     }

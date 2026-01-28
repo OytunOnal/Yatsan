@@ -9,6 +9,10 @@ import adminRoutes from './routes/admin.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import messageRoutes from './routes/message.routes';
 import profileRoutes from './routes/profile.routes';
+import categoryRoutes from './routes/category.routes';
+import brokerRoutes from './routes/broker.routes';
+import favoritesRoutes from './routes/favorites.routes';
+import notificationRoutes from './routes/notification.routes';
 import { databaseMiddleware } from './middleware/database';
 import { errorHandler } from './middleware/errorHandler';
 import { db } from './lib/db';
@@ -51,10 +55,15 @@ app.use(databaseMiddleware);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/brokers', brokerRoutes);
+app.use('/api', brokerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/users/me/favorites', favoritesRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check
 app.get('/api/health', (req: Request, res: Response) => {

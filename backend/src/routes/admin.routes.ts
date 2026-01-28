@@ -1,7 +1,16 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth';
 import { adminMiddleware } from '../middleware/admin';
-import { getPendingListings, approveListing, rejectListing } from '../controllers/admin.controller';
+import {
+  getPlatformStats,
+  getPendingListings,
+  approveListing,
+  rejectListing,
+  getUsers,
+  updateUserStatus,
+  getReports,
+  getAnalytics,
+} from '../controllers/admin.controller';
 
 const router = Router();
 
@@ -9,8 +18,22 @@ const router = Router();
 router.use(authMiddleware);
 router.use(adminMiddleware);
 
-router.get('/pending-listings', getPendingListings);
-router.post('/approve-listing', approveListing);
-router.post('/reject-listing', rejectListing);
+// Platform Stats
+router.get('/stats', getPlatformStats);
+
+// Listing Moderation
+router.get('/listings/pending', getPendingListings);
+router.patch('/listings/:id/approve', approveListing);
+router.patch('/listings/:id/reject', rejectListing);
+
+// User Management
+router.get('/users', getUsers);
+router.patch('/users/:id/status', updateUserStatus);
+
+// Reports
+router.get('/reports', getReports);
+
+// Analytics
+router.get('/analytics', getAnalytics);
 
 export default router;

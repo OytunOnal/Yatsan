@@ -139,24 +139,38 @@ class PartListingHandler {
     // ============================================
     /**
      * Get type-specific filter conditions for database queries
+     *
+     * Uses EXISTS subqueries to avoid JOIN issues in the main query.
+     * The main query only joins listings and users tables.
      */
     getTypeSpecificFilters(filters) {
         const conditions = [];
+        // Build subquery conditions
+        const subqueryConditions = [];
         // Condition filter
         if (filters.condition) {
-            conditions.push((0, drizzle_orm_1.eq)(schema_1.partListings.condition, filters.condition));
+            subqueryConditions.push((0, drizzle_orm_1.eq)(schema_1.partListings.condition, filters.condition));
         }
         // Brand filter (case-insensitive partial match)
         if (filters.brand) {
-            conditions.push((0, drizzle_orm_1.sql) `LOWER(${schema_1.partListings.brand}) LIKE ${`%${filters.brand.toLowerCase()}%`}`);
+            subqueryConditions.push((0, drizzle_orm_1.sql) `LOWER(${schema_1.partListings.brand}) LIKE ${`%${filters.brand.toLowerCase()}%`}`);
         }
         // OEM Code filter (exact match)
         if (filters.oemCode) {
-            conditions.push((0, drizzle_orm_1.eq)(schema_1.partListings.oemCode, filters.oemCode));
+            subqueryConditions.push((0, drizzle_orm_1.eq)(schema_1.partListings.oemCode, filters.oemCode));
         }
         // Compatibility JSON filter (simple contains check)
         if (filters.compatibility) {
-            conditions.push((0, drizzle_orm_1.sql) `${schema_1.partListings.compatibility}::text ILIKE ${`%${filters.compatibility}%`}`);
+            subqueryConditions.push((0, drizzle_orm_1.sql) `${schema_1.partListings.compatibility}::text ILIKE ${`%${filters.compatibility}%`}`);
+        }
+        // If there are any type-specific filters, wrap them in an EXISTS subquery
+        if (subqueryConditions.length > 0) {
+            const whereClause = subqueryConditions.length > 0 ? (0, drizzle_orm_1.and)(...subqueryConditions) : undefined;
+            conditions.push((0, drizzle_orm_1.sql) `EXISTS (
+          SELECT 1 FROM ${schema_1.partListings}
+          WHERE ${schema_1.partListings.listing_id} = ${schema_1.listings.id}
+          ${whereClause ? (0, drizzle_orm_1.sql) `AND ${whereClause}` : (0, drizzle_orm_1.sql) ``}
+        )`);
         }
         return conditions;
     }

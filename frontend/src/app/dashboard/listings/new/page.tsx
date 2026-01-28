@@ -9,18 +9,29 @@ import PartListingForm from '@/components/forms/PartListingForm';
 import MarinaListingForm from '@/components/forms/MarinaListingForm';
 import CrewListingForm from '@/components/forms/CrewListingForm';
 
+// Adım tanımları
+const STEPS = [
+  { id: 1, name: 'İlan Türü', description: 'Kategori seçin' },
+  { id: 2, name: 'Temel Bilgiler', description: 'İlan detayları' },
+  { id: 3, name: 'Görseller', description: 'Fotoğraflar' },
+  { id: 4, name: 'Önizleme', description: 'Yayınla' },
+];
+
 export default function NewListingPage() {
   const router = useRouter();
   const [selectedType, setSelectedType] = useState<ListingType | null>(null);
   const [successMessage, setSuccessMessage] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
 
   const handleTypeSelect = (type: ListingType) => {
     setSelectedType(type);
     setSuccessMessage(false);
+    setCurrentStep(2);
   };
 
   const handleSuccess = (listingId: string) => {
     setSuccessMessage(true);
+    setCurrentStep(4);
     // İlan detay sayfasına yönlendir
     setTimeout(() => {
       router.push(`/listings/${listingId}`);
@@ -30,6 +41,7 @@ export default function NewListingPage() {
   const handleBackToTypes = () => {
     setSelectedType(null);
     setSuccessMessage(false);
+    setCurrentStep(1);
   };
 
   return (
@@ -37,11 +49,56 @@ export default function NewListingPage() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Yeni İlan Oluştur</h1>
         <p className="text-gray-600 mt-2">
-          {selectedType 
+          {selectedType
             ? 'İlan detaylarını doldurun ve ilanınızı yayınlayın.'
             : 'Oluşturmak istediğiniz ilan türünü seçin.'
           }
         </p>
+      </div>
+
+      {/* Progress Bar */}
+      <div className="bg-white rounded-lg p-6 shadow-sm">
+        <div className="flex items-center justify-between">
+          {STEPS.map((step, index) => (
+            <div key={step.id} className="flex items-center flex-1">
+              {/* Step Circle */}
+              <div className="flex flex-col items-center">
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm transition-colors ${
+                    currentStep >= step.id
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-200 text-gray-500'
+                  }`}
+                >
+                  {currentStep > step.id ? (
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  ) : (
+                    step.id
+                  )}
+                </div>
+                <div className="mt-2 text-center">
+                  <p className={`text-sm font-medium ${
+                    currentStep >= step.id ? 'text-gray-900' : 'text-gray-500'
+                  }`}>
+                    {step.name}
+                  </p>
+                  <p className="text-xs text-gray-500 hidden sm:block">{step.description}</p>
+                </div>
+              </div>
+
+              {/* Connector Line */}
+              {index < STEPS.length - 1 && (
+                <div
+                  className={`flex-1 h-1 mx-2 sm:mx-4 rounded transition-colors ${
+                    currentStep > step.id ? 'bg-primary-600' : 'bg-gray-200'
+                  }`}
+                />
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Başarı Mesajı */}

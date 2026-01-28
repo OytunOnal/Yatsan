@@ -48,6 +48,12 @@ const getListingTypeLabel = (type: ListingType): string => {
     part: 'Yedek Parça İlanı',
     marina: 'Marina İlanı',
     crew: 'Mürettebat İlanı',
+    equipment: 'Ekipman İlanı',
+    service: 'Teknik Servis İlanı',
+    storage: 'Kara Park/Kışlama İlanı',
+    insurance: 'Sigorta İlanı',
+    expertise: 'Ekspertiz İlanı',
+    marketplace: 'İkinci El Pazarı İlanı',
   };
   return labels[type] || type;
 };
@@ -100,8 +106,10 @@ function YachtListingDetails({ yacht }: { yacht: any }) {
     { label: 'Durum', value: yacht.condition === 'new' ? 'Yeni' : yacht.condition === 'excellent' ? 'Mükemmel' : yacht.condition === 'good' ? 'İyi' : 'Orta' },
   ];
 
+  // Teknik Bilgiler
+  if (yacht.hin) details.push({ label: 'HIN (Gövde No)', value: yacht.hin });
   if (yacht.engineBrand) details.push({ label: 'Motor Markası', value: yacht.engineBrand });
-  if (yacht.engineHours) details.push({ label: 'Motor Saati', value: yacht.engineHours });
+  if (yacht.engineHours) details.push({ label: 'Motor Saati', value: `${yacht.engineHours} saat` });
   if (yacht.engineHP) details.push({ label: 'Motor Gücü', value: `${yacht.engineHP} HP` });
   if (yacht.fuelType) details.push({ label: 'Yakıt Tipi', value: yacht.fuelType === 'diesel' ? 'Dizel' : yacht.fuelType === 'petrol' ? 'Benzin' : yacht.fuelType === 'electric' ? 'Elektrik' : 'Hibrit' });
   if (yacht.cruisingSpeed) details.push({ label: 'Seyir Hızı', value: `${yacht.cruisingSpeed} knot` });
@@ -377,6 +385,405 @@ function CrewListingDetails({ crew }: { crew: any }) {
   );
 }
 
+// Ekipman ilanı detayları
+function EquipmentListingDetails({ equipment }: { equipment: any }) {
+  const details = [
+    { label: 'Marka', value: equipment.brand },
+    { label: 'Model', value: equipment.model },
+    { label: 'Durum', value: equipment.condition === 'new' ? 'Yeni' : equipment.condition === 'used' ? 'Kullanılmış' : 'Yenilenmiş' },
+  ];
+
+  if (equipment.year) details.push({ label: 'Yıl', value: equipment.year });
+  if (equipment.serialNumber) details.push({ label: 'Seri No', value: equipment.serialNumber });
+
+  // Specifications JSON string olarak geliyor
+  let specifications: Record<string, any> = {};
+  if (equipment.specifications) {
+    try {
+      specifications = JSON.parse(equipment.specifications);
+    } catch {
+      // JSON parse hatası
+    }
+  }
+
+  return (
+    <div>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {details.map((detail, index) => (
+          <div key={index} className="bg-gray-50 p-4 rounded-lg">
+            <p className="text-xs text-gray-500 mb-1">{detail.label}</p>
+            <p className="font-semibold text-gray-900">{detail.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {Object.keys(specifications).length > 0 && (
+        <div className="mt-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Teknik Özellikler</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {Object.entries(specifications).map(([key, value]) => (
+              <div key={key} className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-xs text-gray-500 mb-1">{key}</p>
+                <p className="font-semibold text-gray-900">{String(value)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Teknik servis ilanı detayları
+function ServiceListingDetails({ service }: { service: any }) {
+  const details = [
+    { label: 'Servis Tipi', value: service.serviceType === 'maintenance' ? 'Bakım' : service.serviceType === 'repair' ? 'Tamir' : service.serviceType === 'installation' ? 'Kurulum' : service.serviceType === 'inspection' ? 'Muayene' : 'Danışmanlık' },
+  ];
+
+  if (service.companyName) details.push({ label: 'Firma Adı', value: service.companyName });
+  if (service.licenseNumber) details.push({ label: 'Lisans No', value: service.licenseNumber });
+  if (service.experienceYears) details.push({ label: 'Deneyim', value: `${service.experienceYears} yıl` });
+  if (service.responseTime) details.push({ label: 'Yanıt Süresi', value: service.responseTime });
+
+  // Services offered JSON string olarak geliyor
+  let servicesOffered: string[] = [];
+  if (service.servicesOffered) {
+    try {
+      servicesOffered = JSON.parse(service.servicesOffered);
+    } catch {
+      // JSON parse hatası
+    }
+  }
+
+  // Certifications JSON string olarak geliyor
+  let certifications: string[] = [];
+  if (service.certifications) {
+    try {
+      certifications = JSON.parse(service.certifications);
+    } catch {
+      // JSON parse hatası
+    }
+  }
+
+  return (
+    <div>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {details.map((detail, index) => (
+          <div key={index} className="bg-gray-50 p-4 rounded-lg">
+            <p className="text-xs text-gray-500 mb-1">{detail.label}</p>
+            <p className="font-semibold text-gray-900">{detail.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {servicesOffered.length > 0 && (
+        <div className="mt-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Verilen Hizmetler</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {servicesOffered.map((item, index) => (
+              <div key={index} className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg">
+                <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm text-gray-700">{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {certifications.length > 0 && (
+        <div className="mt-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Sertifikalar</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {certifications.map((item, index) => (
+              <div key={index} className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg">
+                <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm text-gray-700">{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Kara park/kışlama ilanı detayları
+function StorageListingDetails({ storage }: { storage: any }) {
+  const details = [
+    { label: 'Depolama Tipi', value: storage.storageType === 'indoor' ? 'Kapalı Alan' : storage.storageType === 'outdoor' ? 'Açık Alan' : storage.storageType === 'covered' ? 'Üstü Kapalı' : 'Dry Dock' },
+    { label: 'Fiyat Tipi', value: storage.priceType === 'daily' ? 'Günlük' : storage.priceType === 'weekly' ? 'Haftalık' : storage.priceType === 'monthly' ? 'Aylık' : 'Yıllık' },
+  ];
+
+  if (storage.capacity) details.push({ label: 'Kapasite', value: storage.capacity });
+  if (storage.maxLength) details.push({ label: 'Maks. Uzunluk', value: `${storage.maxLength}m` });
+  if (storage.maxBeam) details.push({ label: 'Maks. Genişlik', value: `${storage.maxBeam}m` });
+  if (storage.maxWeight) details.push({ label: 'Maks. Ağırlık', value: `${storage.maxWeight} ton` });
+
+  // Services JSON string olarak geliyor
+  let services: Record<string, boolean> = {};
+  if (storage.services) {
+    try {
+      services = JSON.parse(storage.services);
+    } catch {
+      // JSON parse hatası
+    }
+  }
+
+  // Availability JSON string olarak geliyor
+  let availabilityInfo: { available?: boolean; availableFrom?: string; availableTo?: string } = {};
+  if (storage.availability) {
+    try {
+      availabilityInfo = JSON.parse(storage.availability);
+    } catch {
+      // JSON parse hatası
+    }
+  }
+
+  return (
+    <div>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {details.map((detail, index) => (
+          <div key={index} className="bg-gray-50 p-4 rounded-lg">
+            <p className="text-xs text-gray-500 mb-1">{detail.label}</p>
+            <p className="font-semibold text-gray-900">{detail.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {Object.keys(services).length > 0 && (
+        <div className="mt-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Hizmetler</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {Object.entries(services).map(([key, value]) => {
+              if (!value) return null;
+              const labels: Record<string, string> = {
+                security: 'Güvenlik',
+                electricity: 'Elektrik',
+                water: 'Su',
+                maintenance: 'Bakım',
+                cleaning: 'Temizlik',
+                winterization: 'Kışlama Hazırlığı',
+              };
+              return (
+                <div key={key} className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg">
+                  <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-sm text-gray-700">{labels[key] || key}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {(availabilityInfo.availableFrom || availabilityInfo.availableTo) && (
+        <div className="mt-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Müsaitlik</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {availabilityInfo.availableFrom && (
+              <div className="bg-gray-50 px-3 py-2 rounded-lg">
+                <p className="text-xs text-gray-500 mb-1">Başlangıç</p>
+                <p className="text-sm font-semibold text-gray-900">{new Date(availabilityInfo.availableFrom).toLocaleDateString('tr-TR')}</p>
+              </div>
+            )}
+            {availabilityInfo.availableTo && (
+              <div className="bg-gray-50 px-3 py-2 rounded-lg">
+                <p className="text-xs text-gray-500 mb-1">Bitiş</p>
+                <p className="text-sm font-semibold text-gray-900">{new Date(availabilityInfo.availableTo).toLocaleDateString('tr-TR')}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Sigorta ilanı detayları
+function InsuranceListingDetails({ insurance }: { insurance: any }) {
+  const details = [
+    { label: 'Sigorta Tipi', value: insurance.insuranceType === 'hull' ? 'Kasko' : insurance.insuranceType === 'liability' ? 'Sorumluluk' : insurance.insuranceType === 'crew' ? 'Mürettebat' : insurance.insuranceType === 'cargo' ? 'Kargo' : 'Tam Kapsamlı' },
+  ];
+
+  if (insurance.companyName) details.push({ label: 'Sigorta Şirketi', value: insurance.companyName });
+  if (insurance.coverageAmount) details.push({ label: 'Teminat Tutarı', value: `${insurance.coverageAmount} ${insurance.coverageCurrency || ''}` });
+  if (insurance.deductible) details.push({ label: 'Muafiyet', value: `${insurance.deductible} ${insurance.coverageCurrency || ''}` });
+  if (insurance.duration) details.push({ label: 'Süre', value: insurance.duration });
+
+  // Coverage details JSON string olarak geliyor
+  let coverageDetails: string[] = [];
+  if (insurance.coverageDetails) {
+    try {
+      coverageDetails = JSON.parse(insurance.coverageDetails);
+    } catch {
+      // JSON parse hatası
+    }
+  }
+
+  return (
+    <div>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {details.map((detail, index) => (
+          <div key={index} className="bg-gray-50 p-4 rounded-lg">
+            <p className="text-xs text-gray-500 mb-1">{detail.label}</p>
+            <p className="font-semibold text-gray-900">{detail.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {coverageDetails.length > 0 && (
+        <div className="mt-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Teminat Detayları</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {coverageDetails.map((item, index) => (
+              <div key={index} className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg">
+                <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm text-gray-700">{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Ekspertiz ilanı detayları
+function ExpertiseListingDetails({ expertise }: { expertise: any }) {
+  const details = [
+    { label: 'Ekspertiz Tipi', value: expertise.expertiseType === 'pre_purchase' ? 'Satın Alma Öncesi' : expertise.expertiseType === 'insurance' ? 'Sigorta' : expertise.expertiseType === 'periodic' ? 'Periyodik' : 'Kaza Sonrası' },
+  ];
+
+  if (expertise.companyName) details.push({ label: 'Ekspertiz Firması', value: expertise.companyName });
+  if (expertise.expertName) details.push({ label: 'Eksper Adı', value: expertise.expertName });
+  if (expertise.licenseNumber) details.push({ label: 'Lisans No', value: expertise.licenseNumber });
+  if (expertise.experienceYears) details.push({ label: 'Deneyim', value: `${expertise.experienceYears} yıl` });
+  if (expertise.inspectionDuration) details.push({ label: 'Muayene Süresi', value: expertise.inspectionDuration });
+  if (expertise.reportDeliveryTime) details.push({ label: 'Rapor Teslim Süresi', value: expertise.reportDeliveryTime });
+
+  // Services JSON string olarak geliyor
+  let services: string[] = [];
+  if (expertise.services) {
+    try {
+      services = JSON.parse(expertise.services);
+    } catch {
+      // JSON parse hatası
+    }
+  }
+
+  // Certifications JSON string olarak geliyor
+  let certifications: string[] = [];
+  if (expertise.certifications) {
+    try {
+      certifications = JSON.parse(expertise.certifications);
+    } catch {
+      // JSON parse hatası
+    }
+  }
+
+  return (
+    <div>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {details.map((detail, index) => (
+          <div key={index} className="bg-gray-50 p-4 rounded-lg">
+            <p className="text-xs text-gray-500 mb-1">{detail.label}</p>
+            <p className="font-semibold text-gray-900">{detail.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {services.length > 0 && (
+        <div className="mt-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Hizmetler</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {services.map((item, index) => (
+              <div key={index} className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg">
+                <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm text-gray-700">{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {certifications.length > 0 && (
+        <div className="mt-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Sertifikalar</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {certifications.map((item, index) => (
+              <div key={index} className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg">
+                <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm text-gray-700">{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// İkinci el pazarı ilanı detayları
+function MarketplaceListingDetails({ marketplace }: { marketplace: any }) {
+  const details = [
+    { label: 'Ürün Tipi', value: marketplace.itemType === 'electronics' ? 'Elektronik' : marketplace.itemType === 'safety' ? 'Güvenlik' : marketplace.itemType === 'navigation' ? 'Navigasyon' : marketplace.itemType === 'furniture' ? 'Mobilya' : marketplace.itemType === 'engine' ? 'Motor' : marketplace.itemType === 'sail' ? 'Yelken' : 'Diğer' },
+    { label: 'Durum', value: marketplace.condition === 'new' ? 'Yeni' : marketplace.condition === 'excellent' ? 'Mükemmel' : marketplace.condition === 'good' ? 'İyi' : marketplace.condition === 'fair' ? 'Orta' : 'Onarım Gerekli' },
+  ];
+
+  if (marketplace.brand) details.push({ label: 'Marka', value: marketplace.brand });
+  if (marketplace.model) details.push({ label: 'Model', value: marketplace.model });
+  if (marketplace.year) details.push({ label: 'Yıl', value: marketplace.year });
+  if (marketplace.serialNumber) details.push({ label: 'Seri No', value: marketplace.serialNumber });
+
+  // Specifications JSON string olarak geliyor
+  let specifications: Record<string, any> = {};
+  if (marketplace.specifications) {
+    try {
+      specifications = JSON.parse(marketplace.specifications);
+    } catch {
+      // JSON parse hatası
+    }
+  }
+
+  return (
+    <div>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {details.map((detail, index) => (
+          <div key={index} className="bg-gray-50 p-4 rounded-lg">
+            <p className="text-xs text-gray-500 mb-1">{detail.label}</p>
+            <p className="font-semibold text-gray-900">{detail.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {Object.keys(specifications).length > 0 && (
+        <div className="mt-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Ürün Özellikleri</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {Object.entries(specifications).map(([key, value]) => (
+              <div key={key} className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-xs text-gray-500 mb-1">{key}</p>
+                <p className="font-semibold text-gray-900">{String(value)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default async function ListingDetailPage({ params }: { params: { id: string } }) {
   const listing = await getListing(params.id);
 
@@ -457,6 +864,24 @@ export default async function ListingDetailPage({ params }: { params: { id: stri
             )}
             {listing.listingType === 'crew' && listing.crewListing && (
               <CrewListingDetails crew={listing.crewListing} />
+            )}
+            {listing.listingType === 'equipment' && listing.equipmentListing && (
+              <EquipmentListingDetails equipment={listing.equipmentListing} />
+            )}
+            {listing.listingType === 'service' && listing.serviceListing && (
+              <ServiceListingDetails service={listing.serviceListing} />
+            )}
+            {listing.listingType === 'storage' && listing.storageListing && (
+              <StorageListingDetails storage={listing.storageListing} />
+            )}
+            {listing.listingType === 'insurance' && listing.insuranceListing && (
+              <InsuranceListingDetails insurance={listing.insuranceListing} />
+            )}
+            {listing.listingType === 'expertise' && listing.expertiseListing && (
+              <ExpertiseListingDetails expertise={listing.expertiseListing} />
+            )}
+            {listing.listingType === 'marketplace' && listing.marketplaceListing && (
+              <MarketplaceListingDetails marketplace={listing.marketplaceListing} />
             )}
           </div>
 

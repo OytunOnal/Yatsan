@@ -29,7 +29,7 @@ class YachtListingHandler {
             yachtType: zod_1.z.enum(['motor_yacht', 'sailing_yacht', 'catamaran', 'gulet'], {
                 errorMap: () => ({ message: 'Geçersiz yat türü' })
             }),
-            year: zod_1.z.number().int().min(1970).max(new Date().getFullYear() + 1, 'Geçersiz yıl'),
+            year: zod_1.z.number().int().min(1970).max(new Date().getFullYear(), 'Geçersiz yıl'),
             length: zod_1.z.number().positive('Uzunluk pozitif olmalı'),
             beam: zod_1.z.number().positive('Genişlik pozitif olmalı'),
             draft: zod_1.z.number().positive('Sükunet pozitif olmalı'),
@@ -277,45 +277,59 @@ class YachtListingHandler {
     // ============================================
     /**
      * Get type-specific filter conditions for database queries
+     *
+     * Uses EXISTS subqueries to avoid JOIN issues in the main query.
+     * The main query only joins listings and users tables.
      */
     getTypeSpecificFilters(filters) {
         const conditions = [];
+        // Build subquery conditions
+        const subqueryConditions = [];
         // Yacht type filter
         if (filters.yachtType) {
-            conditions.push((0, drizzle_orm_1.eq)(schema_1.yachtListings.yachtType, filters.yachtType));
+            subqueryConditions.push((0, drizzle_orm_1.eq)(schema_1.yachtListings.yachtType, filters.yachtType));
         }
         // Year range filters
         if (filters.minYear) {
-            conditions.push((0, drizzle_orm_1.sql) `${schema_1.yachtListings.year} >= ${parseInt(filters.minYear)}`);
+            subqueryConditions.push((0, drizzle_orm_1.sql) `${schema_1.yachtListings.year} >= ${parseInt(filters.minYear)}`);
         }
         if (filters.maxYear) {
-            conditions.push((0, drizzle_orm_1.sql) `${schema_1.yachtListings.year} <= ${parseInt(filters.maxYear)}`);
+            subqueryConditions.push((0, drizzle_orm_1.sql) `${schema_1.yachtListings.year} <= ${parseInt(filters.maxYear)}`);
         }
         // Length range filters (stored as decimal string)
         if (filters.minLength) {
-            conditions.push((0, drizzle_orm_1.sql) `CAST(${schema_1.yachtListings.length} AS NUMERIC) >= ${parseFloat(filters.minLength)}`);
+            subqueryConditions.push((0, drizzle_orm_1.sql) `CAST(${schema_1.yachtListings.length} AS NUMERIC) >= ${parseFloat(filters.minLength)}`);
         }
         if (filters.maxLength) {
-            conditions.push((0, drizzle_orm_1.sql) `CAST(${schema_1.yachtListings.length} AS NUMERIC) <= ${parseFloat(filters.maxLength)}`);
+            subqueryConditions.push((0, drizzle_orm_1.sql) `CAST(${schema_1.yachtListings.length} AS NUMERIC) <= ${parseFloat(filters.maxLength)}`);
         }
         // Condition filter
         if (filters.condition) {
-            conditions.push((0, drizzle_orm_1.eq)(schema_1.yachtListings.condition, filters.condition));
+            subqueryConditions.push((0, drizzle_orm_1.eq)(schema_1.yachtListings.condition, filters.condition));
         }
         // Fuel type filter
         if (filters.fuelType) {
-            conditions.push((0, drizzle_orm_1.eq)(schema_1.yachtListings.fuelType, filters.fuelType));
+            subqueryConditions.push((0, drizzle_orm_1.eq)(schema_1.yachtListings.fuelType, filters.fuelType));
         }
         // Cabin count range filters
         if (filters.minCabinCount) {
-            conditions.push((0, drizzle_orm_1.sql) `${schema_1.yachtListings.cabinCount} >= ${parseInt(filters.minCabinCount)}`);
+            subqueryConditions.push((0, drizzle_orm_1.sql) `${schema_1.yachtListings.cabinCount} >= ${parseInt(filters.minCabinCount)}`);
         }
         if (filters.maxCabinCount) {
-            conditions.push((0, drizzle_orm_1.sql) `${schema_1.yachtListings.cabinCount} <= ${parseInt(filters.maxCabinCount)}`);
+            subqueryConditions.push((0, drizzle_orm_1.sql) `${schema_1.yachtListings.cabinCount} <= ${parseInt(filters.maxCabinCount)}`);
         }
         // Equipment JSON filter (simple contains check)
         if (filters.equipment) {
-            conditions.push((0, drizzle_orm_1.sql) `${schema_1.yachtListings.equipment}::text ILIKE ${`%${filters.equipment}%`}`);
+            subqueryConditions.push((0, drizzle_orm_1.sql) `${schema_1.yachtListings.equipment}::text ILIKE ${`%${filters.equipment}%`}`);
+        }
+        // If there are any type-specific filters, wrap them in an EXISTS subquery
+        if (subqueryConditions.length > 0) {
+            const whereClause = subqueryConditions.length > 0 ? (0, drizzle_orm_1.and)(...subqueryConditions) : undefined;
+            conditions.push((0, drizzle_orm_1.sql) `EXISTS (
+          SELECT 1 FROM ${schema_1.yachtListings}
+          WHERE ${schema_1.yachtListings.listing_id} = ${schema_1.listings.id}
+          ${whereClause ? (0, drizzle_orm_1.sql) `AND ${whereClause}` : (0, drizzle_orm_1.sql) ``}
+        )`);
         }
         return conditions;
     }

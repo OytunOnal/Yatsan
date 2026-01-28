@@ -168,28 +168,42 @@ class MarinaListingHandler {
     // ============================================
     /**
      * Get type-specific filter conditions for database queries
+     *
+     * Uses EXISTS subqueries to avoid JOIN issues in the main query.
+     * The main query only joins listings and users tables.
      */
     getTypeSpecificFilters(filters) {
         const conditions = [];
+        // Build subquery conditions
+        const subqueryConditions = [];
         // Price type filter
         if (filters.priceType) {
-            conditions.push((0, drizzle_orm_1.eq)(schema_1.marinaListings.priceType, filters.priceType));
+            subqueryConditions.push((0, drizzle_orm_1.eq)(schema_1.marinaListings.priceType, filters.priceType));
         }
         // Max length filter (stored as decimal string)
         if (filters.maxLength) {
-            conditions.push((0, drizzle_orm_1.sql) `CAST(${schema_1.marinaListings.maxLength} AS NUMERIC) >= ${parseFloat(filters.maxLength)}`);
+            subqueryConditions.push((0, drizzle_orm_1.sql) `CAST(${schema_1.marinaListings.maxLength} AS NUMERIC) >= ${parseFloat(filters.maxLength)}`);
         }
         // Max beam filter (stored as decimal string)
         if (filters.maxBeam) {
-            conditions.push((0, drizzle_orm_1.sql) `CAST(${schema_1.marinaListings.maxBeam} AS NUMERIC) >= ${parseFloat(filters.maxBeam)}`);
+            subqueryConditions.push((0, drizzle_orm_1.sql) `CAST(${schema_1.marinaListings.maxBeam} AS NUMERIC) >= ${parseFloat(filters.maxBeam)}`);
         }
         // Max draft filter (stored as decimal string)
         if (filters.maxDraft) {
-            conditions.push((0, drizzle_orm_1.sql) `CAST(${schema_1.marinaListings.maxDraft} AS NUMERIC) >= ${parseFloat(filters.maxDraft)}`);
+            subqueryConditions.push((0, drizzle_orm_1.sql) `CAST(${schema_1.marinaListings.maxDraft} AS NUMERIC) >= ${parseFloat(filters.maxDraft)}`);
         }
         // Services JSON filter (simple contains check)
         if (filters.services) {
-            conditions.push((0, drizzle_orm_1.sql) `${schema_1.marinaListings.services}::text ILIKE ${`%${filters.services}%`}`);
+            subqueryConditions.push((0, drizzle_orm_1.sql) `${schema_1.marinaListings.services}::text ILIKE ${`%${filters.services}%`}`);
+        }
+        // If there are any type-specific filters, wrap them in an EXISTS subquery
+        if (subqueryConditions.length > 0) {
+            const whereClause = subqueryConditions.length > 0 ? (0, drizzle_orm_1.and)(...subqueryConditions) : undefined;
+            conditions.push((0, drizzle_orm_1.sql) `EXISTS (
+          SELECT 1 FROM ${schema_1.marinaListings}
+          WHERE ${schema_1.marinaListings.listing_id} = ${schema_1.listings.id}
+          ${whereClause ? (0, drizzle_orm_1.sql) `AND ${whereClause}` : (0, drizzle_orm_1.sql) ``}
+        )`);
         }
         return conditions;
     }
