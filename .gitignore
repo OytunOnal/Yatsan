@@ -1,0 +1,10 @@
+node_modules/
+.env
+.DS_Store
+# Build artifacts & runtime dirs (were mistakenly tracked before)
+frontend/.next/
+backend/uploads/
+frontend/.env.local
+0.0.0a0
+screenshots/
+backend/dist/
